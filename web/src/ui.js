@@ -15,6 +15,8 @@ import {
   loadTrusted,
   forgetTrusted,
   resetIdentity,
+  freeName,
+  identityKey,
 } from './identity.js';
 import { Net } from './net.js';
 import qrcode from 'qrcode-generator';
@@ -47,6 +49,7 @@ const S = {
   stalled: false,
   backTo: 'radar', // where settings sub-screens return to
   qrUrl: null, // the link the enlarged QR is showing
+  notice: null, // a transient line about something that just changed
 };
 
 // Renders are coalesced into one animation frame. Transfer progress calls
@@ -197,11 +200,11 @@ const eyebrow = (t) => el('div', { class: 'eyebrow' }, t);
 /** The radar's status line. The dot carries the connection state so it is
  *  always visible; the text says what is true right now. */
 const liveLine = (text) =>
-  el('div', { class: 'live' + (S.status === 'reconnecting' ? ' off' : '') }, [
+  el('div', { class: 'live' + (S.status === 'reconnecting' ? ' off' : S.notice ? ' note' : '') }, [
     el('i'),
     // The label clips, not the row: the dot's pulse ring is a box-shadow that
     // grows past its box, and overflow on the row would square it off.
-    el('span', {}, S.status === 'reconnecting' ? 'Reconnecting' : text),
+    el('span', {}, S.status === 'reconnecting' ? 'Reconnecting' : (S.notice ?? text)),
   ]);
 
 const head = (html, cls = '') => el('h2', { class: 'head ' + cls, html });
@@ -250,7 +253,33 @@ const toggleRow = (label, sub, on, onChange) =>
 
 // ---------------------------------------------------------------- networking
 
-net.addEventListener('peers', (e) => set({ peers: e.detail }));
+net.addEventListener('peers', (e) => {
+  set({ peers: e.detail });
+  resolveNameClash();
+});
+
+/**
+ * Two devices called Red Kite makes the room unreadable — the whole product is
+ * "find that name on their screen". Exactly one side renames: the higher peer
+ * id yields, which both sides compute identically, so they cannot swap into a
+ * new clash or both sit still waiting for the other.
+ */
+function resolveNameClash() {
+  const mine = identityKey(S.me);
+  const clash = S.peers.find((p) => identityKey(p) === mine);
+  if (!clash || !net.id || net.id < clash.id) return;
+
+  const taken = S.peers.map(identityKey);
+  const name = freeName(S.me.color, taken, S.me.name);
+  const me = { ...S.me, name };
+  saveMe(me);
+  net.setMe({ name: me.name, color: me.color, kind: me.kind });
+  set({ me, notice: `Someone here was already ${S.me.name} — you are ${name}` });
+  clearTimeout(noticeTimer);
+  noticeTimer = setTimeout(() => set({ notice: null }), 7000);
+}
+
+let noticeTimer = 0;
 net.addEventListener('status', (e) => set({ status: e.detail }));
 
 net.addEventListener('blocked', () => {
@@ -1316,6 +1345,7 @@ const renderKey = () =>
     S.showQueue,
     S.stalled,
     S.entry,
+    S.notice,
     S.error,
     S.code,
     S.backTo,

@@ -20,20 +20,60 @@ export const ON = {
 
 export const KEYS = Object.keys(COLORS);
 
+// Real animals, two syllables where possible, and pronounceable out loud —
+// the product's core move is saying a name across a room. Sixteen per colour
+// so a room can be made collision-free by renaming rather than by luck.
 export const NAMES = {
-  red: ['Red Squirrel', 'Red Deer', 'Red Snapper', 'Red Kite', 'Red Panda', 'Red Fox'],
-  blue: ['Blue Marlin', 'Blue Crane', 'Blue Tang', 'Blue Heron', 'Blue Jay', 'Blue Whale'],
-  green: ['Green Finch', 'Green Gecko', 'Green Turtle', 'Green Teal', 'Green Iora', 'Green Anole'],
-  pink: ['Pink Flamingo', 'Pink Hare', 'Pink Shrimp', 'Pink Galah', 'Pink Robin', 'Pink Salmon'],
+  red: [
+    'Red Kite', 'Red Fox', 'Red Deer', 'Red Panda', 'Red Squirrel', 'Red Snapper',
+    'Red Crab', 'Red Robin', 'Red Setter', 'Red Grouse', 'Red Macaw', 'Red Lynx',
+    'Red Salamander', 'Red Admiral', 'Red Drake', 'Red Ibis',
+  ],
+  blue: [
+    'Blue Jay', 'Blue Heron', 'Blue Whale', 'Blue Marlin', 'Blue Crane', 'Blue Tang',
+    'Blue Crab', 'Blue Shark', 'Blue Morpho', 'Blue Magpie', 'Blue Roller', 'Blue Tit',
+    'Blue Wren', 'Blue Bass', 'Blue Damsel', 'Blue Swallow',
+  ],
+  green: [
+    'Green Finch', 'Green Gecko', 'Green Turtle', 'Green Teal', 'Green Iora', 'Green Anole',
+    'Green Heron', 'Green Mamba', 'Green Iguana', 'Green Bee', 'Green Magpie', 'Green Frog',
+    'Green Lizard', 'Green Parrot', 'Green Crab', 'Green Moth',
+  ],
+  pink: [
+    'Pink Flamingo', 'Pink Galah', 'Pink Robin', 'Pink Salmon', 'Pink Hare', 'Pink Shrimp',
+    'Pink Cockatoo', 'Pink Dolphin', 'Pink Starfish', 'Pink Iguana', 'Pink Snapper',
+    'Pink Fairy', 'Pink Katydid', 'Pink Sea Star', 'Pink Grasshopper', 'Pink Orchid Mantis',
+  ],
   yellow: [
-    'Yellow Oriole',
-    'Yellow Tang',
-    'Yellow Warbler',
-    'Yellow Wagtail',
-    'Yellow Weaver',
-    'Yellow Bunting',
+    'Yellow Oriole', 'Yellow Warbler', 'Yellow Wagtail', 'Yellow Tang', 'Yellow Weaver',
+    'Yellow Bunting', 'Yellow Finch', 'Yellow Canary', 'Yellow Mongoose', 'Yellow Baboon',
+    'Yellow Seahorse', 'Yellow Robin', 'Yellow Hornbill', 'Yellow Boxfish', 'Yellow Crab',
+    'Yellow Sponge',
   ],
 };
+
+/**
+ * A free name for this colour, given the ones already in use.
+ *
+ * Two devices called Red Kite makes the room unreadable, and a bigger pool only
+ * makes that less likely, never impossible — fifteen devices across thirty
+ * combinations collide about ninety-seven times in a hundred. So the room is
+ * made unique rather than hoped to be.
+ */
+export function freeName(color, taken, current) {
+  const used = new Set(taken);
+  const pool = NAMES[color] ?? [];
+  const free = pool.filter((n) => n !== current && !used.has(color + '|' + n));
+  if (free.length) return free[Math.floor(Math.random() * free.length)];
+  // More devices of one colour than names: fall back to a numbered suffix
+  // rather than handing out a duplicate.
+  for (let i = 2; ; i++) {
+    const n = `${pool[0] ?? 'Device'} ${i}`;
+    if (!used.has(color + '|' + n)) return n;
+  }
+}
+
+export const identityKey = (p) => `${p.color}|${p.name}`;
 
 const KEY = 'drop.me';
 

@@ -1116,6 +1116,10 @@ button {
 .live.off {
   color: #c2410c;
 }
+/* A name change is worth noticing but is not an error. */
+.live.note {
+  color: var(--ink);
+}
 .live i {
   flex: none;
   width: 8px;
