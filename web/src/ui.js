@@ -47,7 +47,6 @@ const S = {
   stalled: false,
   backTo: 'radar', // where settings sub-screens return to
   qrUrl: null, // the link the enlarged QR is showing
-  room: null, // the manual room code we are in, if any
 };
 
 // Renders are coalesced into one animation frame. Transfer progress calls
@@ -337,17 +336,17 @@ function buildReceiver(ch) {
   });
 }
 
-function startPairing() {
-  const code = Math.random().toString(36).slice(2, 6).toUpperCase();
-  net.disconnect();
-  net.connect(code);
-  set({ screen: 'pairshow', code, room: code, backTo: 'radar' });
-}
-
-function stopPairing() {
-  net.disconnect();
-  net.connect(null);
-  set({ screen: 'radar', code: null, room: null });
+/**
+ * A code points at the room you are already in — it does not move you into a
+ * new one. That is what lets the front screen show one without giving up
+ * automatic discovery, and why there is nothing to leave afterwards.
+ */
+function pairingCode() {
+  if (!S.code) {
+    S.code = Math.random().toString(36).slice(2, 6).toUpperCase();
+    net.publish(S.code);
+  }
+  return S.code;
 }
 
 async function pickTarget(peer) {
@@ -456,9 +455,12 @@ function radar() {
             {
               class: 'qrbox',
               'aria-label': 'Enlarge the QR code',
-              onClick: () => set({ screen: 'qr', qrUrl: appUrl(), backTo: 'radar' }),
+              onClick: () => set({ screen: 'qr', qrUrl: appUrl(pairingCode()), backTo: 'radar' }),
             },
-            [qrSvg(appUrl(), 'Scan to open this page on another device')]
+            // The code costs nothing now that it points at this room rather
+            // than replacing it, so the front QR carries one: scanning works
+            // whether or not the two devices group together automatically.
+            [qrSvg(appUrl(pairingCode()), 'Scan to open this page on another device')]
           ),
           el('div', { class: 'qrcap' }, 'Point the other camera here'),
           navigator.share
@@ -480,7 +482,11 @@ function radar() {
         el('p', { class: 'body', style: { color: 'var(--dim)' } }, [
           'Open this page on the other device. It takes over one of these blocks the moment it appears.',
         ]),
-        el('button', { class: 'linkline', onClick: startPairing }, 'Not showing up? Pair by hand'),
+        el(
+          'button',
+          { class: 'linkline', onClick: () => set({ screen: 'pairshow', backTo: 'radar' }) },
+          'Not showing up? Show a code'
+        ),
         el(
           'div',
           { class: 'swatches waiting' },
@@ -499,9 +505,7 @@ function radar() {
       liveLine(
         S.files.length
           ? `${S.files.length} file${S.files.length > 1 ? 's' : ''} ready — pick a device`
-          : S.room
-            ? `${count} in room ${S.room}`
-            : `${count} device${count > 1 ? 's' : ''} on this Wi-Fi`
+          : `${count} device${count > 1 ? 's' : ''} on this Wi-Fi`
       ),
       gearBtn(),
     ]),
@@ -926,8 +930,9 @@ function settings() {
         }),
 
       el('div', { class: 'section' }, 'Pairing'),
-      S.room && row('Leave room ' + S.room, 'Go back to finding devices automatically', stopPairing),
-      row('Show my code', 'For when devices do not find each other', startPairing),
+      row('Show my code', 'For when devices do not find each other', () =>
+        set({ screen: 'pairshow', backTo: 'settings' })
+      ),
       row('Enter their code', 'Join a device that showed you a code', () =>
         set({ screen: 'pairenter', entry: '', backTo: 'settings' })
       ),
@@ -1145,7 +1150,7 @@ function qrBig() {
 
 function pairShow() {
   const c = COLORS[S.me.color];
-  const code = S.code ?? '';
+  const code = pairingCode();
   return [
     el('div', { class: 'screen' }, [
       eyebrow('Pair by hand'),
@@ -1156,7 +1161,7 @@ function pairShow() {
         code.split('').map((v) => el('div', { style: { background: c, color: ON[S.me.color] } }, v))
       ),
       el('p', { class: 'body sm', style: { color: 'var(--dim)' } }, [
-        'You are in this room now. Anyone who enters the code joins you here.',
+        'Anyone who scans or types this lands where you already are. It works for ten minutes.',
       ]),
       // The QR does a different job to the one on the front screen — it carries
       // the room, not just the page — but the headline is the code, so the QR
@@ -1170,7 +1175,7 @@ function pairShow() {
         'or show a QR to scan'
       ),
       el('div', { class: 'spring' }),
-      blackBtn('Done', () => set({ screen: 'radar', backTo: 'radar' })),
+      blackBtn('Done', () => set({ screen: S.backTo === 'settings' ? 'settings' : 'radar' })),
       plainBtn('I have their code instead', () =>
         set({ screen: 'pairenter', entry: '', backTo: S.backTo })
       ),

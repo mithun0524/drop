@@ -3,10 +3,17 @@
 //
 // Room membership is derived from the caller's public IP: everyone behind the
 // same NAT lands in the same Durable Object and sees each other, with no code
-// to type. A manual ?code= joins a named room instead, for the cases where IP
-// grouping fails (dual-WAN, CGNAT, guest VLANs).
+// to type.
+//
+// A pairing code is a POINTER to a room, never a room of its own. Someone who
+// cannot be found automatically publishes a code for the room they are already
+// in; scanning or typing it drops you into that room. Codes that named their
+// own room forced both devices to abandon automatic discovery to use one,
+// which is why the code could only ever be a fallback — as a pointer it is
+// simply a second way to arrive at the same place.
 
 const ROOM_SALT = 'drop-v1';
+const CODE_TTL = 10 * 60 * 1000; // a pairing code is for right now, not forever
 
 /**
  * Reduce a client address to the thing its neighbours share.
@@ -49,6 +56,8 @@ async function roomFromIp(ip) {
     .join('');
 }
 
+const directory = (env) => env.ROOMS.get(env.ROOMS.idFromName('directory'));
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -60,26 +69,70 @@ export default {
       return new Response('expected websocket', { status: 426 });
     }
 
-    const code = url.searchParams.get('code');
-    const name = code
-      ? 'code:' + code.toUpperCase()
-      : 'ip:' + (await roomFromIp(request.headers.get('CF-Connecting-IP') || 'unknown'));
+    const myRoom = 'ip:' + (await roomFromIp(request.headers.get('CF-Connecting-IP') || 'unknown'));
 
-    return env.ROOMS.get(env.ROOMS.idFromName(name)).fetch(request);
+    // A code resolves to the room its owner is in. If it has expired or never
+    // existed, fall back to this caller's own room rather than stranding them
+    // alone in a room named after a dead code.
+    const code = url.searchParams.get('code');
+    let name = myRoom;
+    if (code) {
+      const res = await directory(env).fetch(
+        new Request('https://d/resolve?code=' + encodeURIComponent(code.toUpperCase()))
+      );
+      const { room } = await res.json();
+      name = room || myRoom;
+    }
+
+    // A Durable Object cannot read the name it was addressed by, and it needs
+    // it to publish codes that point back here.
+    const forwarded = new Request(new URL('/ws?room=' + encodeURIComponent(name), url), request);
+    return env.ROOMS.get(env.ROOMS.idFromName(name)).fetch(forwarded);
   },
 };
 
 export class Room {
-  constructor(state) {
+  constructor(state, env) {
     this.state = state;
+    this.env = env;
     this.peers = new Map(); // id -> { ws, info }
+    this.room = null; // the name this object was addressed by, passed in by the worker
   }
 
-  async fetch() {
+  async fetch(request) {
+    const url = new URL(request.url);
+
+    // Directory duty: the same class, addressed by a fixed name, holds the
+    // code -> room map. One object rather than a second binding to configure.
+    if (url.pathname === '/publish') {
+      const code = url.searchParams.get('code');
+      await this.state.storage.put('c:' + code, {
+        room: url.searchParams.get('room'),
+        at: Date.now(),
+      });
+      await this.prune();
+      return Response.json({ ok: true });
+    }
+    if (url.pathname === '/resolve') {
+      const hit = await this.state.storage.get('c:' + url.searchParams.get('code'));
+      const live = hit && Date.now() - hit.at < CODE_TTL;
+      return Response.json({ room: live ? hit.room : null });
+    }
+
+    this.room = url.searchParams.get('room') ?? this.room;
+
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
     this.accept(server);
     return new Response(null, { status: 101, webSocket: client });
+  }
+
+  /** Codes are the only thing here that grows, so expired ones go on write. */
+  async prune() {
+    const cutoff = Date.now() - CODE_TTL;
+    const all = await this.state.storage.list({ prefix: 'c:' });
+    const dead = [...all].filter(([, v]) => v.at < cutoff).map(([k]) => k);
+    if (dead.length) await this.state.storage.delete(dead);
   }
 
   accept(ws) {
@@ -110,6 +163,20 @@ export class Room {
           })
         );
         this.broadcast({ t: 'join', peer: info }, id);
+        return;
+      }
+
+      // Publishing a code points it at THIS room, so whoever uses it arrives
+      // where the publisher already is.
+      if (m.t === 'publish' && m.code && this.room) {
+        this.env.ROOMS.get(this.env.ROOMS.idFromName('directory')).fetch(
+          new Request(
+            'https://d/publish?code=' +
+              encodeURIComponent(String(m.code).toUpperCase()) +
+              '&room=' +
+              encodeURIComponent(this.room)
+          )
+        );
         return;
       }
 

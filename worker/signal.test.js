@@ -1,6 +1,6 @@
 // Two fake peers against the local worker: do they discover each other and
 // does an SDP relay reach exactly the right peer?
-const U = 'ws://localhost:8787/ws';
+const U = 'ws://localhost:8788/ws';
 const open = (name, color) => new Promise((res) => {
   const ws = new WebSocket(U); const got = [];
   ws.onmessage = (e) => { const m = JSON.parse(e.data); got.push(m); if (m.t==='welcome') { ws.id=m.id; ws.send(JSON.stringify({t:'hello',name,color,kind:'phone'})); res({ws,got}); } };

@@ -26,10 +26,20 @@ export class Net extends EventTarget {
     this.retry = 0;
     this.closed = false;
     this.stallTimers = new Map();
+    this.pending = null; // a code waiting for the socket to come up
   }
 
   emit(type, detail) {
     this.dispatchEvent(new CustomEvent(type, { detail }));
+  }
+
+  /** Point a pairing code at the room we are in, so using it arrives here. */
+  publish(code) {
+    this.pending = code;
+    if (this.ws?.readyState === 1) {
+      this.ws.send(JSON.stringify({ t: 'publish', code }));
+      this.pending = null;
+    }
   }
 
   connect(code = null) {
@@ -42,6 +52,12 @@ export class Net extends EventTarget {
       this.retry = 0;
       this.emit('status', 'online');
       ws.send(JSON.stringify({ t: 'hello', ...this.me }));
+      // Re-publish across a reconnect: the room name can change, and a code
+      // still on someone's screen has to keep pointing at the right one.
+      if (this.pending) {
+        ws.send(JSON.stringify({ t: 'publish', code: this.pending }));
+        this.pending = null;
+      }
     };
 
     ws.onmessage = (ev) => this.onSignal(JSON.parse(ev.data));

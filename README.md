@@ -31,7 +31,7 @@ Open the LAN URL on a second device to see the two find each other.
 
 ```sh
 npm test          # transfer protocol: byte-exact round trip, truncation, overrun
-npm run test:signal   # signaling: discovery, targeted relay, leave  (worker must be running)
+npm run test:signal   # signaling + pairing semantics  (worker must be running on :8788)
 ```
 
 ## Deploy
@@ -58,8 +58,15 @@ that case and shows the permission screen.
 
 The worker hashes the caller's public IP and uses it as the room name, so every
 device behind the same NAT lands in the same room and appears in each other's
-list with nothing to type. When that fails — dual-WAN, CGNAT, guest VLANs — a
-4-character room code joins a named room instead.
+list with nothing to type.
+
+A pairing code is a **pointer to a room, never a room of its own**. A device
+publishes a code for the room it is already in; scanning or typing that code
+resolves through a directory and drops you into that same room. This is why
+showing a code costs nothing — it does not move you — and why the QR on the
+front screen can carry one, so scanning works whether or not IP grouping does.
+Codes expire after ten minutes and an unknown one falls back to your own room
+rather than stranding you somewhere empty.
 
 ## Scope
 
