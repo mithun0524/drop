@@ -222,7 +222,7 @@ button {
   grid-template-columns: 1fr 1fr;
   grid-auto-rows: 1fr;
   gap: 6px;
-  padding: 0 6px;
+  padding: 0 6px 6px;
   transition: opacity 0.3s;
 }
 .tiles.one {
@@ -231,7 +231,7 @@ button {
 .tiles.many {
   grid-template-columns: repeat(3, 1fr);
   gap: 5px;
-  padding: 0 5px;
+  padding: 0 5px 5px;
 }
 .tiles.dim {
   opacity: 0.35;
@@ -1221,5 +1221,42 @@ button {
 @media (orientation: landscape) and (max-height: 520px) {
   .qrwrap {
     display: none;
+  }
+}
+
+
+/* A lone device fills the screen, so its silhouette scales up to match; the
+   drawn size only ever suited a half-width tile. */
+.tiles.one .art > * {
+  --dev: 2.1;
+}
+@media (max-height: 760px) {
+  .tiles.one .art > * {
+    --dev: 1.7;
+  }
+}
+@media (max-height: 640px) {
+  .tiles.one .art > * {
+    --dev: 1.3;
+  }
+}
+@media (max-width: 360px) {
+  .tiles.one .art > * {
+    --dev: 1.5;
+  }
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  .tiles.one .art > * {
+    --dev: 0.9;
+  }
+}
+
+/* Two to four devices share the width, so they sit between the two extremes. */
+.tiles:not(.one):not(.many) .art > * {
+  --dev: 1.15;
+}
+@media (max-width: 360px) {
+  .tiles:not(.one):not(.many) .art > * {
+    --dev: 0.9;
   }
 }
