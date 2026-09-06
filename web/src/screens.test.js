@@ -136,10 +136,11 @@ console.log(`screens: ${checked} states rendered clean at 320/390/768px`);
   // A silhouette shrunk with transform keeps its full layout box, so it
   // overflows any small container it is dropped into (this shipped: the phone
   // rendered below the footer's 30px circle). They scale via --dev instead.
-  // Only the rules that hold a silhouette — ":active" transforms are press
-  // feedback and are meant to be paint-only.
-  const devRules = css.match(/\.(foot \.dot|avatar|tiles\.many \.art|mepreview \.art)\s*>\s*\*\s*\{[^}]*\}/g) ?? [];
-  assert.ok(devRules.length >= 4, 'expected the silhouette container rules');
+  // Silhouettes now live only on peer tiles — self-representation is initials.
+  // ":active" transforms are press feedback and are meant to be paint-only.
+  const devRules = css.match(/\.tiles\.many \.art\s*>\s*\*\s*\{[^}]*\}/g) ?? [];
+  assert.ok(devRules.length >= 1, 'expected the silhouette container rule');
+  assert.ok(/--dev:/.test(css), 'silhouettes must still size through --dev');
   for (const rule of devRules)
     assert.ok(!/transform:\s*scale/.test(rule), `silhouette must scale via --dev, not transform: ${rule.slice(0, 60)}`);
 
@@ -151,4 +152,31 @@ console.log(`screens: ${checked} states rendered clean at 320/390/768px`);
   }
 
   console.log('css: layout invariants hold');
+}
+
+// Initials back the avatar everywhere you appear, so they must survive the
+// names the app actually generates plus the odd ones it doesn't.
+{
+  const probe = new URL('./__init.gen.js', import.meta.url);
+  const uiSrc = readFileSync(new URL('./ui.js', import.meta.url), 'utf8');
+  const fn = uiSrc.match(/const initials = [\s\S]*?\n};/)[0];
+  writeFileSync(probe, fn + '\nexport { initials };');
+  const { initials } = await import(probe.href);
+  unlinkSync(probe);
+
+  assert.equal(initials('Red Kite'), 'RK');
+  assert.equal(initials('Yellow Wagtail'), 'YW');
+  assert.equal(initials('Otter'), 'OT');       // single word
+  assert.equal(initials('a'), 'A');            // one letter
+  assert.equal(initials('  Blue   Marlin  '), 'BM'); // stray whitespace
+  assert.equal(initials(''), '?');
+  assert.equal(initials(), '?');
+
+  // Every generated name must yield two readable letters.
+  const names = [...uiSrc.matchAll(/'(?:Red|Blue|Green|Pink|Yellow) [A-Z][a-z]+'/g)].map((m) =>
+    m[0].slice(1, -1)
+  );
+  for (const n of names) assert.match(initials(n), /^[A-Z]{2}$/, `bad initials for ${n}`);
+
+  console.log('initials: all checks passed');
 }

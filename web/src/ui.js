@@ -82,6 +82,14 @@ const silhouette = (kind) =>
 
 const kindLabel = (k) => (k === 'phone' ? 'Phone' : k === 'laptop' ? 'Laptop' : 'Tablet');
 
+/** "Red Kite" -> "RK". Single-word names fall back to their first two letters. */
+const initials = (name = '') => {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return '?';
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+};
+
 const eyebrow = (t) => el('div', { class: 'eyebrow' }, t);
 
 const head = (html, cls = '') => el('h2', { class: 'head ' + cls, html });
@@ -107,7 +115,7 @@ const gearBtn = () =>
       style: { background: COLORS[S.me.color], color: ON[S.me.color] },
       onClick: () => set({ screen: 'settings' }),
     },
-    [silhouette(S.me.kind)]
+    initials(S.me.name)
   );
 
 const row = (label, sub, onClick, extra) =>
@@ -395,9 +403,10 @@ function footer() {
           class: 'dot',
           style: { background: COLORS[S.me.color], color: ON[S.me.color] },
         },
-        // The same silhouette the tiles use, so your own device is drawn the
-        // way the other person sees it — a laptop reads as a laptop.
-        [silhouette(S.me.kind)]
+        // Your initials, not a device shape: this is who you are, and the
+        // label beside it already says which device. Peer tiles keep the
+        // silhouettes, where the device kind is the useful part.
+        initials(S.me.name)
       ),
       el('div', { class: 'nm' }, S.me.name),
       el('div', { class: 'side' }, 'This ' + kindLabel(S.me.kind).toLowerCase()),
@@ -745,7 +754,7 @@ function settings() {
           onClick: () => set({ screen: 'identity', backTo: 'settings' }),
         },
         [
-          el('div', { class: 'art' }, [silhouette(S.me.kind)]),
+          el('div', { class: 'art' }, initials(S.me.name)),
           el('div', { style: { minWidth: 0, textAlign: 'left' } }, [
             el('div', { class: 'me-name' }, S.me.name),
             el('div', { class: 'me-sub' }, 'Tap to change colour or name'),

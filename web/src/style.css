@@ -367,11 +367,9 @@ button {
   overflow: hidden;
   flex: none;
 }
-.foot .dot > * {
-  --dev: 0.19;
-}
-.foot .dot .dev-laptop {
-  --dev: 0.16;
+.foot .dot {
+  font: 600 11.5px/1 Inter, sans-serif;
+  letter-spacing: 0.02em;
 }
 .foot .nm {
   font: 600 clamp(14px, 4.4vw, 17px) / 1 Inter, sans-serif;
@@ -836,11 +834,9 @@ button {
 .avatar:active {
   transform: scale(0.94);
 }
-.avatar > * {
-  --dev: 0.24;
-}
-.avatar .dev-laptop {
-  --dev: 0.2;
+.avatar {
+  font: 600 14px/1 Inter, sans-serif;
+  letter-spacing: 0.02em;
 }
 
 .gear {
@@ -1077,8 +1073,13 @@ button {
   place-content: center;
   width: 44px;
 }
-.mepreview .art > * {
-  --dev: 0.62;
+.mepreview .art {
+  font: 600 22px/1 Inter, sans-serif;
+  letter-spacing: -0.01em;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  height: 52px;
+  width: 52px;
 }
 
 /* A bare gear with no label still needs to sit on the right. */
