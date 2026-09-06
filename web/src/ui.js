@@ -434,7 +434,7 @@ function radar() {
       // server pushes the instant another device joins, so the honest signal is
       // that we are connected and listening.
       el('div', { class: 'topbar' }, [liveLine('Listening on this network'), gearBtn()]),
-      el('div', { class: 'screen to-edge', style: { justifyContent: 'flex-end' } }, [
+      el('div', { class: 'screen to-edge' }, [
         el('div', { class: 'qrwrap' }, [
           qrSvg(appUrl(), 'Scan to open this page on another device'),
           el('div', { class: 'qrcap' }, 'Point the other camera here'),

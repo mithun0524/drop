@@ -173,6 +173,28 @@ console.log(`screens: ${checked} states rendered clean at 320/390/768px`);
   const hardcoded = css.match(/font(-family)?:[^;]*(Helvetica|Arial|system-ui)[^;]*/g) ?? [];
   assert.ok(hardcoded.length <= 1, 'only the --font token may name a concrete family');
 
+  // justify-content:flex-end on a scrollable column pushes overflow off the
+  // TOP, where it cannot be scrolled to. This clipped the QR. Auto margins do
+  // the same job and let overflow fall to the bottom, where it is reachable.
+  const scrollers = css.match(/\.screen\s*\{[^}]*\}/g) ?? [];
+  for (const rule of scrollers)
+    assert.ok(
+      !/justify-content:\s*flex-end/.test(rule),
+      'a scrollable column must not use justify-content:flex-end'
+    );
+  const uiSrc = readFileSync(new URL('./ui.js', import.meta.url), 'utf8');
+  assert.ok(
+    !/class: 'screen[^']*'[^)]*justifyContent: 'flex-end'/.test(uiSrc),
+    'no screen may inline justify-content:flex-end'
+  );
+
+  // Display type has to answer to height as well as width, or a short phone
+  // gets a headline sized for a wide one.
+  for (const sel of ['.head', '.body']) {
+    const rule = css.match(new RegExp('\\' + sel + '\\s*\\{[^}]*\\}'))?.[0] ?? '';
+    assert.ok(/vh/.test(rule), `${sel} must be constrained by viewport height too`);
+  }
+
   console.log('css: layout invariants hold');
 }
 

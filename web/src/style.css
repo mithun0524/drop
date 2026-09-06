@@ -68,19 +68,21 @@ button {
   opacity: 0.72;
 }
 .head {
-  font: 600 clamp(30px, 11.3vw, 52px) / 0.98 var(--font);
+  /* Width and height both constrain it: a 390x670 phone has the width for a
+     44px headline and nowhere near the height. */
+  font: 600 min(clamp(30px, 11.3vw, 52px), 7.4vh) / 0.98 var(--font);
   letter-spacing: -0.04em;
   margin: 0;
   text-wrap: balance;
   overflow-wrap: anywhere; /* a long device name must never overflow */
 }
 .head.sm {
-  font-size: clamp(26px, 9.2vw, 42px);
+  font-size: min(clamp(26px, 9.2vw, 42px), 6.4vh);
   line-height: 1.02;
 }
 .body {
-  font: 400 clamp(14px, 4.1vw, 17px) / 1.5 var(--font);
-  margin: 18px 0 0;
+  font: 400 min(clamp(14px, 4.1vw, 17px), 2.6vh) / 1.5 var(--font);
+  margin: clamp(10px, 2.2vh, 18px) 0 0;
   max-width: 34ch;
   text-wrap: pretty;
 }
@@ -512,8 +514,8 @@ button {
 .swatches {
   display: flex;
   align-items: flex-end;
-  margin: 30px calc(var(--pad) * -1) 0;
-  height: clamp(52px, 20vw, 80px);
+  margin: clamp(14px, 3vh, 30px) calc(var(--pad) * -1) 0;
+  height: clamp(40px, 11vh, 80px);
   flex: none;
 }
 .swatches div {
@@ -1034,7 +1036,7 @@ button {
   width: auto;
   background: none;
   border: none;
-  padding: 22px 0 4px;
+  padding: clamp(12px, 2.4vh, 22px) 0 4px;
   min-height: 44px;
   color: var(--dim);
   font: 500 clamp(13.5px, 3.9vw, 15px) / 1 var(--font);
@@ -1167,13 +1169,13 @@ button {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding: 8px 0 clamp(16px, 4vh, 32px);
+  gap: clamp(7px, 1.6vh, 12px);
+  padding: 4px 0 clamp(10px, 2.6vh, 28px);
 }
 .qr {
   /* Sized against height as well as width, so it shrinks into a short
      viewport rather than needing to be hidden from it. */
-  width: min(48vw, 26vh, 200px);
+  width: min(46vw, 22vh, 200px);
   height: auto;
   flex: none;
   border-radius: 10px;
