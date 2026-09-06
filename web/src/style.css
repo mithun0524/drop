@@ -1555,14 +1555,15 @@ button {
    The thing happening is not "something is loading", it is these two
    specific devices trying to reach each other, so both are on screen and the
    line between them is what is unfinished. */
+/* Left aligned, like everything else: an illustration centred above
+   left-aligned text reads as two unrelated things sharing a screen. */
 .tether {
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: clamp(10px, 3vw, 18px);
-  margin-bottom: clamp(22px, 5vh, 40px);
+  margin-bottom: clamp(20px, 4vh, 34px);
   flex: none;
-  width: 100%;
+  width: min(100%, 260px);
 }
 .tether-dev {
   display: grid;
@@ -1593,11 +1594,10 @@ button {
 
 /* ---- waiting: the question sits on their device ---------------------- */
 .awaiting {
-  display: grid;
-  place-items: center;
-  margin-bottom: clamp(22px, 5vh, 40px);
+  display: flex;
+  margin-bottom: clamp(24px, 5vh, 42px);
+  padding-left: 14px; /* the rings need room on the left edge */
   flex: none;
-  width: 100%;
 }
 .awaiting-dev {
   position: relative;
