@@ -1503,3 +1503,16 @@ button {
     --dev: 0.8;
   }
 }
+
+
+/* A file list that centres itself when there is little of it. */
+.filelist {
+  margin: auto 0;
+  padding: clamp(10px, 2.5vh, 22px) 0;
+}
+.filelist .filerow:first-child {
+  border-top: 1px solid var(--line);
+}
+.on-color .filelist .filerow:first-child {
+  border-top-color: rgba(255, 255, 255, 0.28);
+}

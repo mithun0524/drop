@@ -1157,9 +1157,11 @@ function confirm_() {
             el('span', {}, 'The other device needs the free space for it. Fewer files at a time is safer.'),
           ])
         : null,
+      // Centres when the list is short, fills and scrolls when it is long, so
+      // one file does not leave a screen of empty colour beneath it.
       el(
         'div',
-        { class: 'scroll', style: { marginTop: '20px' } },
+        { class: 'scroll filelist' },
         S.files.map((f) =>
           el('div', { class: 'filerow' }, [
             el('span', {}, f.name),
@@ -1662,6 +1664,7 @@ const SCREENS = {
 // Screens that take the peer's colour across the whole surface.
 const COLORED = new Set([
   'pick',
+  'confirm',
   'connecting',
   'waiting',
   'declined',
