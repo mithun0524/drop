@@ -27,6 +27,7 @@ export class Net extends EventTarget {
     this.closed = false;
     this.stallTimers = new Map();
     this.pending = null; // a code waiting for the socket to come up
+    this.ice = new Map(); // id -> candidates that arrived before we could use them
     this.net = null; // the network the server saw us arrive from
   }
 
@@ -100,6 +101,7 @@ export class Net extends EventTarget {
     if (m.t === 'leave') {
       this.peers.delete(m.id);
       const c = this.conns.get(m.id);
+      this.ice.delete(m.id);
       if (c) {
         this.emit('gone', m.id);
         c.pc.close();
@@ -121,7 +123,22 @@ export class Net extends EventTarget {
 
   newPc(id) {
     const pc = new RTCPeerConnection(ICE);
-    pc.onicecandidate = (e) => e.candidate && this.send(id, { candidate: e.candidate });
+    const seen = new Set();
+    pc.onicecandidate = (e) => {
+      if (!e.candidate) return;
+      // A LAN connection is made of host candidates. If none appear, the cause
+      // is local (permissions, VPN) rather than the other device — worth being
+      // able to see when a connection fails.
+      const type = /typ (\w+)/.exec(e.candidate.candidate)?.[1];
+      if (type) seen.add(type);
+      this.send(id, { candidate: e.candidate });
+    };
+    pc.onicegatheringstatechange = () => {
+      if (pc.iceGatheringState === 'complete')
+        console.info('[drop] candidates gathered for', id, [...seen].join(', ') || 'none');
+    };
+    pc.oniceconnectionstatechange = () =>
+      console.info('[drop] ice', id, pc.iceConnectionState);
     pc.onconnectionstatechange = () => {
       // 'disconnected' is recoverable — Wi-Fi blips land here and often come
       // back within seconds, so it stalls rather than kills. Only 'failed'
@@ -185,6 +202,28 @@ export class Net extends EventTarget {
     return ch;
   }
 
+  /**
+   * Candidates that arrive before the peer connection can take them.
+   *
+   * The offerer starts trickling the moment setLocalDescription resolves, so
+   * its candidates routinely reach the answerer before the offer itself has
+   * been processed — and addIceCandidate throws until a remote description
+   * exists. Dropping them loses the host candidates first, which on a LAN are
+   * the only ones that would have connected.
+   */
+  queueIce(id, candidate) {
+    const q = this.ice.get(id) ?? [];
+    q.push(candidate);
+    this.ice.set(id, q);
+  }
+
+  async flushIce(id, pc) {
+    const q = this.ice.get(id);
+    if (!q) return;
+    this.ice.delete(id);
+    for (const c of q) await pc.addIceCandidate(c).catch(() => {});
+  }
+
   async onPeerSignal(from, data) {
     let entry = this.conns.get(from);
 
@@ -200,11 +239,13 @@ export class Net extends EventTarget {
         };
         this.conns.set(from, { pc, ch: null });
         await pc.setRemoteDescription(data.sdp);
+        await this.flushIce(from, pc);
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         this.send(from, { sdp: pc.localDescription });
       } else if (entry) {
         await entry.pc.setRemoteDescription(data.sdp);
+        await this.flushIce(from, entry.pc);
       }
       return;
     }
@@ -214,7 +255,10 @@ export class Net extends EventTarget {
       return;
     }
 
-    if (data.candidate && entry?.pc) {
+    if (data.candidate) {
+      // No connection yet, or no remote description yet: hold it rather than
+      // throw it away.
+      if (!entry?.pc || !entry.pc.remoteDescription) return this.queueIce(from, data.candidate);
       await entry.pc.addIceCandidate(data.candidate).catch(() => {});
     }
   }
