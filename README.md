@@ -86,13 +86,24 @@ not a page reload.
 Sending has no limit: files are read in 64KB slices with backpressure, so the
 sender never holds more than a few megabytes.
 
-Receiving depends on the browser. Chromium can stream straight to disk via the
-File System Access API, and the handles are opened at the accept tap because a
-save picker is only allowed from a user gesture — there the size is unbounded.
-Everywhere else the file is assembled in memory, which caps a transfer at
-roughly 1.8GB on a desktop, 1.2GB on Android and 0.7GB on iOS. Both the sender
-and the receiver are warned before a transfer that would exceed it, rather than
-finding out when the tab is killed.
+Receiving picks the best of three sinks, each removing a different ceiling:
+
+1. **A file the person chose** — File System Access, Chromium desktop. No limit
+   at all. Handles are opened inside the accept tap, because a save picker is
+   only allowed from a user gesture.
+2. **The Origin Private File System** — Chrome, Android, Safari 17+. Bytes go to
+   the browser's own disk as they arrive, so the limit becomes the storage
+   quota (a share of free disk) rather than the tab's memory. Getting the file
+   out afterwards goes through the share sheet on phones and a download
+   elsewhere; both take the disk-backed File and stream from it.
+3. **Memory** — only when neither is available. Caps a transfer at roughly
+   1.8GB on a desktop, 1.2GB on Android and 0.7GB on iOS.
+
+The receiver is warned before a transfer that will not fit, against whichever
+limit actually applies, rather than finding out when the tab is killed.
+
+Scratch files in the private filesystem are pruned after saving and on the next
+launch: nothing there is meant to outlive the session that made it.
 
 ## Scope
 

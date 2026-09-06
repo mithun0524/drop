@@ -29,6 +29,10 @@ import {
   canStreamToDisk,
   memoryCeiling,
   createSession,
+  opfsSink,
+  canUseOpfs,
+  pruneOpfs,
+  storageHeadroom,
   formatSize,
 } from './transfer.js';
 
@@ -61,6 +65,8 @@ const S = {
   qrUrl: null, // the link the enlarged QR is showing
   notice: null, // a transient line about something that just changed
   incomingFrom: null, // a peer that is choosing files for us right now
+  headroom: 0, // bytes the browser will let us store, measured at boot
+  saved: false, // the received files have been handed to the OS
   writables: null, // file handles opened at the accept tap, when streaming to disk
   tid: null, // this transfer's id, so a retry resumes rather than restarts
   resumable: false, // a dropped transfer that still has progress worth keeping
@@ -415,7 +421,17 @@ function buildReceiver(onResume) {
     // the accept screen has already warned about the ceiling.
     openSink: async (meta, i) => {
       const w = S.writables?.[i];
-      return w ? diskSink(w) : memorySink();
+      if (w) return diskSink(w); // a file the person chose: no limit at all
+      if (canUseOpfs()) {
+        try {
+          // Keyed by transfer so a resumed file reuses its own partial and a
+          // prune can tell live scratch from dead.
+          return await opfsSink(`${S.tid ?? 'x'}-${i}`);
+        } catch {
+          /* quota refused or no access — memory is still better than failing */
+        }
+      }
+      return memorySink();
     },
     onProgress: ({ got, total, index }) => {
       const secs = (performance.now() - S.startedAt) / 1000;
@@ -509,7 +525,7 @@ async function accept() {
   // Must happen inside the gesture that accepted, before any await that would
   // end it — browsers only open a save picker from a user action.
   let writables = null;
-  if (canStreamToDisk() && overCeiling(S.manifest)) {
+  if (canStreamToDisk() && totalOf(S.manifest) > memoryCeiling()) {
     try {
       if (S.manifest.length === 1) {
         const handle = await window.showSaveFilePicker({ suggestedName: S.manifest[0].name });
@@ -545,7 +561,13 @@ export function safeName(name) {
 }
 
 const totalOf = (files) => (files ?? []).reduce((a, f) => a + f.size, 0);
-const overCeiling = (files) => totalOf(files) > memoryCeiling();
+
+/** True only when the file would actually have to live in memory. */
+const overCeiling = (files) =>
+  !canUseOpfs() && !canStreamToDisk() && totalOf(files) > memoryCeiling();
+
+/** True when it exceeds what the browser will let us store on disk. */
+const overQuota = (files) => S.headroom > 0 && totalOf(files) > S.headroom;
 
 function decline() {
   net.channel(S.target.id)?.send(JSON.stringify({ t: 'decline' }));
@@ -902,6 +924,8 @@ function incoming() {
   const total = totalOf(S.manifest);
   const n = S.manifest.length;
   const heavy = overCeiling(S.manifest);
+  const cramped = overQuota(S.manifest);
+  const big = total > memoryCeiling();
 
   let timer = null;
   const startHold = () => {
@@ -930,22 +954,32 @@ function incoming() {
         el('div', { class: 'meta' }, formatSize(total)),
         // Too big to hold, and this browser cannot stream to disk: say so now
         // rather than let the tab die halfway through with nothing on screen.
-        heavy && !canStreamToDisk()
+        cramped
           ? el('div', { class: 'warn' }, [
-              el('b', {}, 'Bigger than this browser can hold.'),
+              el('b', {}, 'Bigger than this device can store.'),
               el(
                 'span',
                 {},
-                'It may run out of memory before it finishes. Ask them to send fewer files at a ' +
-                  'time, or open Drop in Chrome on a computer to save straight to disk.'
+                `About ${formatSize(S.headroom)} is free for Drop to use. Ask them to send fewer ` +
+                  'files at a time, or free up space first.'
               ),
             ])
           : heavy
-            ? el('div', { class: 'warn ok' }, [
-                el('b', {}, 'Large transfer — you will be asked where to save.'),
-                el('span', {}, 'Each file is written straight to disk as it arrives.'),
+            ? el('div', { class: 'warn' }, [
+                el('b', {}, 'Bigger than this browser can hold.'),
+                el(
+                  'span',
+                  {},
+                  'It may run out of memory before it finishes. Ask them to send fewer files at a ' +
+                    'time, or open Drop in Chrome on a computer.'
+                ),
               ])
-            : null,
+            : big && canStreamToDisk()
+              ? el('div', { class: 'warn ok' }, [
+                  el('b', {}, 'Large transfer — you will be asked where to save.'),
+                  el('span', {}, 'Each file is written straight to disk as it arrives.'),
+                ])
+              : null,
       ]),
       el(
         'button',
@@ -967,7 +1001,7 @@ function incoming() {
               ? 'Accepting…'
               : S.hold > 0
                 ? 'Keep holding…'
-                : heavy && canStreamToDisk()
+                : big && canStreamToDisk()
                   ? 'Hold to accept and choose where to save'
                   : 'Hold to accept'
           ),
@@ -1101,10 +1135,10 @@ function confirm_() {
       eyebrow('Confirm'),
       head(`${n} file${n > 1 ? 's' : ''} to<br>${S.target.name}.`, 'sm'),
       el('div', { class: 'meta' }, formatSize(total) + ' total'),
-      total > memoryCeiling()
+      total > 4e9
         ? el('div', { class: 'warn' }, [
             el('b', {}, 'This is a lot to send at once.'),
-            el('span', {}, 'Phones may run out of memory receiving it. Fewer files at a time is safer.'),
+            el('span', {}, 'The other device needs the free space for it. Fewer files at a time is safer.'),
           ])
         : null,
       el(
@@ -1282,23 +1316,55 @@ function saved() {
           )
         ),
       ]),
-      blackBtn(S.results.length > 1 ? 'Save all' : 'Save', saveAll),
-      plainBtn('Done', () => set({ screen: 'radar', target: null, results: [] })),
+      blackBtn(
+        S.saved ? 'Saved' : S.results.length > 1 ? 'Save all' : 'Save',
+        S.saved ? () => set({ screen: 'radar', target: null, results: [], saved: false }) : saveAll
+      ),
+      plainBtn('Done', () => {
+        pruneOpfs();
+        session = createSession();
+        set({ screen: 'radar', target: null, results: [], saved: false });
+      }),
     ]),
   ];
 }
 
-function saveAll() {
+async function saveAll() {
+  const files = S.results.map(([name, blob]) =>
+    blob instanceof File ? blob : new File([blob], name, { type: 'application/octet-stream' })
+  );
+
+  // Phones have no download folder worth speaking of, but they do have a share
+  // sheet — and it takes the disk-backed File straight from storage, so a large
+  // file is handed to the OS rather than pulled back into memory.
+  if (navigator.canShare?.({ files })) {
+    try {
+      await navigator.share({ files });
+      return afterSave();
+    } catch (err) {
+      if (err?.name === 'AbortError') return; // they dismissed the sheet
+      /* sharing unavailable for this payload — fall through to downloads */
+    }
+  }
+
   // A click handler is the only place a browser will let us start downloads,
   // so they all go out from this one gesture.
-  for (const [name, blob] of S.results) {
-    const url = URL.createObjectURL(blob);
-    const a = el('a', { href: url, download: name });
+  for (const file of files) {
+    const url = URL.createObjectURL(file);
+    const a = el('a', { href: url, download: file.name });
     document.body.append(a);
     a.click();
     a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 30_000);
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
   }
+  afterSave();
+}
+
+/** The scratch copies have served their purpose; quota is finite. */
+function afterSave() {
+  pruneOpfs();
+  session = createSession();
+  set({ saved: true });
 }
 
 function offNet() {
@@ -1587,6 +1653,7 @@ const renderKey = () =>
     S.notice,
     S.incomingFrom?.id,
     S.resumable,
+    S.saved,
     S.error,
     S.code,
     S.backTo,
@@ -1625,6 +1692,12 @@ function render() {
 
 async function boot() {
   render();
+  // Anything still in the private filesystem belongs to a transfer that never
+  // finished; nothing here is meant to outlive the session that made it.
+  pruneOpfs().catch(() => {});
+  storageHeadroom().then((headroom) => headroom && set({ headroom }));
+  // Persisted storage is far less likely to be evicted mid-transfer.
+  navigator.storage?.persist?.().catch(() => {});
   if (!navigator.onLine) return set({ screen: 'nowifi' });
 
   // A QR carries ?room=CODE, so scanning one joins that room rather than

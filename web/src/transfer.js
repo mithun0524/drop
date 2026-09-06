@@ -279,9 +279,74 @@ export const canStreamToDisk = () =>
  * conservative: the peak is the file being assembled plus everything already
  * received in the batch, and being wrong here means the tab dies mid-transfer
  * with nothing on screen to explain it.
+ *
+ * Only relevant when nothing better is available — see opfsSink.
  */
 export function memoryCeiling(ua = typeof navigator === 'undefined' ? '' : navigator.userAgent) {
   if (/iPhone|iPad|iPod/.test(ua)) return 0.7e9;
   if (/Android/.test(ua)) return 1.2e9;
   return 1.8e9;
+}
+
+// ---- private filesystem ---------------------------------------------------
+// Phones cannot open a save picker, so the alternative to holding a file in
+// memory is holding it on the browser's own disk. Bytes land in the Origin
+// Private File System as they arrive and the finished file is handed over from
+// there — the limit stops being the tab's memory and becomes the storage quota,
+// which is a share of free disk rather than a gigabyte.
+
+const OPFS_DIR = 'incoming';
+
+export const canUseOpfs = () =>
+  typeof navigator !== 'undefined' &&
+  !!navigator.storage?.getDirectory &&
+  typeof FileSystemFileHandle !== 'undefined' &&
+  // Safari only grew createWritable in 17; without it there is no append path.
+  !!FileSystemFileHandle.prototype.createWritable;
+
+const opfsDir = async () =>
+  (await navigator.storage.getDirectory()).getDirectoryHandle(OPFS_DIR, { create: true });
+
+/** A sink that streams to the browser's own disk and hands back a File. */
+export async function opfsSink(key) {
+  const dir = await opfsDir();
+  const handle = await dir.getFileHandle(key, { create: true });
+  const w = await handle.createWritable();
+  return {
+    write: (c) => w.write(c),
+    close: async () => {
+      await w.close();
+      // Disk-backed, so object URLs and the share sheet stream from it rather
+      // than pulling the whole thing into memory.
+      return handle.getFile();
+    },
+  };
+}
+
+/** Bounded retention: these are scratch files, and quota is finite. */
+export async function pruneOpfs(keepKeys = []) {
+  if (!canUseOpfs()) return 0;
+  const keep = new Set(keepKeys);
+  let removed = 0;
+  try {
+    const dir = await opfsDir();
+    for await (const name of dir.keys()) {
+      if (keep.has(name)) continue;
+      await dir.removeEntry(name).catch(() => {});
+      removed++;
+    }
+  } catch {
+    /* no OPFS access — nothing to prune */
+  }
+  return removed;
+}
+
+/** Free space we can actually claim, for warning against a real number. */
+export async function storageHeadroom() {
+  try {
+    const { quota = 0, usage = 0 } = (await navigator.storage?.estimate?.()) ?? {};
+    return Math.max(0, quota - usage);
+  } catch {
+    return 0;
+  }
 }

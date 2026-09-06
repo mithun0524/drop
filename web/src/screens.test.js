@@ -69,6 +69,13 @@ const STATES = {
     target: PEER,
     manifest: [{ name: 'raw.zip', size: 9e9 }],
   },
+  'incoming-no-space': {
+    screen: 'incoming',
+    target: PEER,
+    manifest: [{ name: 'raw.zip', size: 9e9 }],
+    headroom: 2e9,
+  },
+  'saved-done': { screen: 'saved', target: PEER, manifest: MANIFEST, results: [['a.raw', { size: 100 }]], saved: true },
   'confirm-huge': { screen: 'confirm', target: PEER, files: [{ name: 'raw.zip', size: 9e9 }] },
   awaited: { target: PEER, incomingFrom: PEER },
   sending: { target: PEER, files: MANIFEST, pct: 42, speed: 84, index: 0, fileName: 'x.raw' },
@@ -117,7 +124,7 @@ for (const [label, patch] of Object.entries(STATES)) {
     screen, peers: [], target: null, files: [], manifest: null, results: [],
     failed: [], showQueue: false, stalled: false, status: 'online', pct: 0, speed: 0, index: 0,
     qrUrl: 'https://drop.test/', code: 'QRR4', settings: { autoAccept: false },
-    incomingFrom: null, notice: null, resumable: false, tid: null,
+    incomingFrom: null, notice: null, resumable: false, tid: null, headroom: 0, saved: false,
   }, patch, { screen });
 
   assert.ok(SCREENS[screen], `no screen registered for "${screen}"`);
