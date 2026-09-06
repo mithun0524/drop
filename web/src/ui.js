@@ -50,6 +50,7 @@ const S = {
   backTo: 'radar', // where settings sub-screens return to
   qrUrl: null, // the link the enlarged QR is showing
   notice: null, // a transient line about something that just changed
+  incomingFrom: null, // a peer that is choosing files for us right now
 };
 
 // Renders are coalesced into one animation frame. Transfer progress calls
@@ -286,6 +287,18 @@ net.addEventListener('blocked', () => {
   if (S.screen === 'connecting' || S.screen === 'waiting') set({ screen: 'blocked' });
 });
 
+let hintTimer = 0;
+
+net.addEventListener('hint', ({ detail: { from, kind } }) => {
+  clearTimeout(hintTimer);
+  if (kind !== 'picking') return set({ incomingFrom: null });
+  const peer = net.peers.get(from);
+  if (!peer) return;
+  set({ incomingFrom: peer });
+  // If they close the tab mid-pick there is no 'stopped', so it lapses.
+  hintTimer = setTimeout(() => set({ incomingFrom: null }), 90_000);
+});
+
 net.addEventListener('stalled', (e) => {
   if (S.target?.id === e.detail && (S.screen === 'sending' || S.screen === 'receiving'))
     set({ stalled: true });
@@ -322,7 +335,14 @@ async function onChannelMessage(from, data) {
       const peer = net.peers.get(from) ?? { id: from, name: 'Someone', color: 'blue' };
       rx = buildReceiver(net.channel(from));
       await rx.handle(data);
-      set({ screen: 'incoming', target: peer, manifest: m.files, hold: 0, failed: [] });
+      set({
+        screen: 'incoming',
+        target: peer,
+        manifest: m.files,
+        hold: 0,
+        failed: [],
+        incomingFrom: null,
+      });
       // A device you've accepted from before skips the hold, if you asked for it.
       if (S.settings.autoAccept && isTrusted(peer)) accept();
       return;
@@ -380,6 +400,10 @@ function pairingCode() {
 
 async function pickTarget(peer) {
   if (!sameNetwork(peer)) return set({ target: peer, screen: 'offnet' });
+  // Sent over the signalling socket, before any connection exists: they learn
+  // someone is picking for them, and you learn you tapped the right device
+  // before spending time in the file picker.
+  net.hint(peer.id, 'picking');
   set({ target: peer, screen: 'pick' });
 }
 
@@ -438,6 +462,7 @@ function decline() {
 }
 
 function cancel() {
+  if (S.target) net.hint(S.target.id, 'stopped');
   abort?.abort();
   rx?.abort();
   net.channel(S.target?.id)?.send(JSON.stringify({ t: 'cancel' }));
@@ -539,9 +564,11 @@ function radar() {
     S.status === 'reconnecting' && el('div', { class: 'banner' }, 'Lost the network — reconnecting'),
     el('div', { class: 'topbar' }, [
       liveLine(
-        S.files.length
-          ? `${S.files.length} file${S.files.length > 1 ? 's' : ''} ready — pick a device`
-          : `${count} device${count > 1 ? 's' : ''} on this Wi-Fi`
+        S.incomingFrom
+          ? `${S.incomingFrom.name} is choosing files for you`
+          : S.files.length
+            ? `${S.files.length} file${S.files.length > 1 ? 's' : ''} ready — pick a device`
+            : `${count} device${count > 1 ? 's' : ''} on this Wi-Fi`
       ),
       gearBtn(),
     ]),
@@ -558,7 +585,7 @@ function radar() {
         el(
           'button',
           {
-            class: 'tile',
+            class: 'tile' + (S.incomingFrom?.id === p.id ? ' waiting-on' : ''),
             style: { background: COLORS[p.color] ?? COLORS.blue, color: ON[p.color] ?? '#fff' },
             onClick: () => (S.files.length ? offerFiles(p, S.files) : pickTarget(p)),
           },
@@ -569,9 +596,11 @@ function radar() {
               el(
                 'div',
                 { class: 'kind' },
-                sameNetwork(p)
-                  ? kindLabel(p.kind) + ' · tap to send'
-                  : 'Different network'
+                S.incomingFrom?.id === p.id
+                  ? 'Choosing files for you'
+                  : sameNetwork(p)
+                    ? kindLabel(p.kind) + ' · tap to send'
+                    : 'Different network'
               ),
             ]),
           ]
@@ -690,7 +719,10 @@ function pick() {
         ]),
       ]),
       blackBtn('Choose files', () => input.click()),
-      plainBtn('Cancel', () => set({ screen: 'radar', target: null })),
+      plainBtn('Cancel', () => {
+        net.hint(S.target.id, 'stopped');
+        set({ screen: 'radar', target: null });
+      }),
     ]),
   ];
 }
@@ -924,7 +956,10 @@ function confirm_() {
         )
       ),
       blackBtn('Send', () => offerFiles(S.target, S.files)),
-      plainBtn('Cancel', () => set({ screen: 'radar', files: [], target: null })),
+      plainBtn('Cancel', () => {
+        net.hint(S.target.id, 'stopped');
+        set({ screen: 'radar', files: [], target: null });
+      }),
     ]),
   ];
 }
@@ -1346,6 +1381,7 @@ const renderKey = () =>
     S.stalled,
     S.entry,
     S.notice,
+    S.incomingFrom?.id,
     S.error,
     S.code,
     S.backTo,

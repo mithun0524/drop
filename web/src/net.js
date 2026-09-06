@@ -114,6 +114,11 @@ export class Net extends EventTarget {
     this.ws?.send(JSON.stringify({ t: 'signal', to, data }));
   }
 
+  /** A hint sent before any connection exists, over the signalling socket. */
+  hint(to, kind) {
+    this.send(to, { hint: kind });
+  }
+
   newPc(id) {
     const pc = new RTCPeerConnection(ICE);
     pc.onicecandidate = (e) => e.candidate && this.send(id, { candidate: e.candidate });
@@ -201,6 +206,11 @@ export class Net extends EventTarget {
       } else if (entry) {
         await entry.pc.setRemoteDescription(data.sdp);
       }
+      return;
+    }
+
+    if (data.hint) {
+      this.emit('hint', { from, kind: data.hint });
       return;
     }
 

@@ -66,6 +66,18 @@ const seen = c.got.find((m) => m.t === 'peers')?.peers ?? [];
 check('peers carry a network fingerprint', seen.length > 0 && seen.every((p) => !!p.net));
 check('same-network peers report the same fingerprint', seen.every((p) => p.net === netOf(c)));
 
+// The "choosing files for you" hint travels before any WebRTC connection
+// exists, so it has to relay over the signalling socket like SDP does.
+const before = b.got.length;
+a.ws.send(JSON.stringify({ t: 'signal', to: b.ws.id, data: { hint: 'picking' } }));
+await wait(600);
+const hint = b.got.slice(before).find((m) => m.t === 'signal' && m.data?.hint === 'picking');
+check('a hint relays before any connection exists', !!hint && hint.from === a.ws.id);
+
+const beforeD = d.got.length;
+await wait(300);
+check('a hint reaches only its target', !d.got.slice(beforeD).some((m) => m.data?.hint));
+
 for (const x of [a, b, c, d, e]) x.ws.close();
 await wait(200);
 console.log(failures ? `\npairing: ${failures} FAILED` : '\npairing: all checks passed');

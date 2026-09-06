@@ -57,6 +57,7 @@ const STATES = {
   'radar-four': { screen: 'radar', peers: Array.from({ length: 4 }, (_, i) => ({ ...PEER, id: 'p' + i })) },
   'radar-many': { screen: 'radar', peers: Array.from({ length: 15 }, (_, i) => ({ ...PEER, id: 'p' + i })) },
   'radar-reconnecting': { screen: 'radar', peers: [PEER], status: 'reconnecting' },
+  'radar-awaited': { screen: 'radar', peers: [PEER], incomingFrom: PEER },
   pick: { target: PEER },
   confirm: { target: PEER, files: MANIFEST },
   connecting: { target: PEER },
@@ -100,6 +101,7 @@ for (const [label, patch] of Object.entries(STATES)) {
     screen, peers: [], target: null, files: [], manifest: null, results: [],
     failed: [], showQueue: false, stalled: false, status: 'online', pct: 0, speed: 0, index: 0,
     qrUrl: 'https://drop.test/', code: 'QRR4', settings: { autoAccept: false },
+    incomingFrom: null, notice: null,
   }, patch, { screen });
 
   assert.ok(SCREENS[screen], `no screen registered for "${screen}"`);
