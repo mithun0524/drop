@@ -1,0 +1,11 @@
+{
+  "appId": "to.drop.app",
+  "appName": "Drop",
+  "webDir": "web/dist",
+  "ios": {
+    "contentInset": "always"
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}

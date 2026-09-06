@@ -1,0 +1,18 @@
+{
+  "name": "drop",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite web --host",
+    "build": "vite build web",
+    "preview": "vite preview web --host",
+    "test": "node web/src/transfer.test.js",
+    "worker:dev": "wrangler dev --config worker/wrangler.toml",
+    "worker:deploy": "wrangler deploy --config worker/wrangler.toml",
+    "test:signal": "node worker/signal.test.js"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0",
+    "wrangler": "^4.129.0"
+  }
+}
