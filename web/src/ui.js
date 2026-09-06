@@ -84,10 +84,65 @@ const el = (tag, attrs = {}, kids = []) => {
   return n;
 };
 
-const silhouette = (kind) =>
-  kind === 'laptop'
-    ? el('div', { class: 'dev-laptop' }, [el('i'), el('b')])
-    : el('div', { class: kind === 'tablet' ? 'dev-tablet' : 'dev-phone' });
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const svgEl = (tag, attrs) => {
+  const n = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+  return n;
+};
+
+let maskSeq = 0;
+
+/**
+ * Device silhouettes. Solid shapes rather than outlines, per the design — but
+ * a solid rounded rectangle only reads as a phone while it is small. The
+ * details are punched out with a mask so they show whatever is behind, which
+ * is a different colour in every place these appear.
+ */
+function silhouette(kind) {
+  const box = { phone: [50, 80], tablet: [64, 86], laptop: [86, 58] }[kind] ?? [50, 80];
+  const [w, h] = box;
+  const id = 'dev' + ++maskSeq;
+
+  const svg = svgEl('svg', {
+    viewBox: `0 0 ${w} ${h}`,
+    class: 'dev dev-' + kind,
+    'aria-hidden': 'true',
+    focusable: 'false',
+  });
+
+  const mask = svgEl('mask', { id, maskUnits: 'userSpaceOnUse' });
+  const shown = (a) => svgEl('rect', { ...a, fill: '#fff' });
+  const cut = (a) => svgEl('rect', { ...a, fill: '#000' });
+
+  if (kind === 'laptop') {
+    mask.append(
+      shown({ x: 8, y: 0, width: 70, height: 46, rx: 5 }),
+      cut({ x: 12, y: 4, width: 62, height: 38, rx: 2 }), // screen
+      shown({ x: 0, y: 50, width: 86, height: 8, rx: 4 }),
+      cut({ x: 36, y: 52.5, width: 14, height: 3, rx: 1.5 }) // trackpad notch
+    );
+  } else if (kind === 'tablet') {
+    mask.append(
+      shown({ x: 0, y: 0, width: w, height: h, rx: 9 }),
+      cut({ x: 6, y: 9, width: w - 12, height: h - 20, rx: 3 }), // screen
+      cut({ x: w / 2 - 1, y: 4, width: 2, height: 2, rx: 1 }) // camera
+    );
+  } else {
+    mask.append(
+      shown({ x: 0, y: 0, width: w, height: h, rx: 11 }),
+      cut({ x: w / 2 - 7, y: 6, width: 14, height: 2.5, rx: 1.25 }), // earpiece
+      cut({ x: 4, y: 12, width: w - 8, height: h - 24, rx: 5 }), // screen
+      cut({ x: w / 2 - 9, y: h - 6, width: 18, height: 2.5, rx: 1.25 }) // home bar
+    );
+  }
+
+  svg.append(
+    mask,
+    svgEl('rect', { width: w, height: h, fill: 'currentColor', mask: `url(#${id})` })
+  );
+  return svg;
+}
 
 const kindLabel = (k) => (k === 'phone' ? 'Phone' : k === 'laptop' ? 'Laptop' : 'Tablet');
 

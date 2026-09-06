@@ -303,3 +303,50 @@ console.log(`screens: ${checked} states rendered clean at 320/390/768px`);
 
   console.log('qr: encodes the join link and parses back');
 }
+
+// A solid rounded rectangle reads as a phone only while it is tiny. The
+// details are punched with a mask so they show whatever is behind — these
+// silhouettes sit on a coloured card, a black footer and a coloured avatar.
+{
+  const probe = new URL('./__sil.gen.js', import.meta.url);
+  const uiSrc = readFileSync(new URL('./ui.js', import.meta.url), 'utf8');
+  const block = uiSrc.match(/const SVG_NS = [\s\S]*?\n}\n/)[0];
+  writeFileSync(probe, block + '\nexport { silhouette };');
+  const { silhouette } = await import(probe.href);
+  unlinkSync(probe);
+
+  for (const kind of ['phone', 'tablet', 'laptop']) {
+    const svg = silhouette(kind);
+    assert.equal(svg.tagName.toLowerCase(), 'svg', `${kind} should be an svg`);
+    assert.ok(svg.classList.contains('dev-' + kind), `${kind} keeps its sizing class`);
+
+    // Detail cut-outs are what stop it being a featureless blob.
+    const cuts = [...svg.querySelectorAll('mask rect')].filter(
+      (r) => r.getAttribute('fill') === '#000'
+    );
+    assert.ok(cuts.length >= 1, `${kind} needs punched detail, got ${cuts.length}`);
+
+    // The body must inherit colour, or it cannot sit on both a red card and a
+    // black footer.
+    const body = svg.querySelector('svg > rect');
+    assert.equal(body.getAttribute('fill'), 'currentColor', `${kind} body must inherit colour`);
+
+    // Every cut must fall inside the body, or it punches nothing.
+    const [, , vw, vh] = svg.getAttribute('viewBox').split(' ').map(Number);
+    for (const c of cuts) {
+      const x = +c.getAttribute('x'), y = +c.getAttribute('y');
+      const w = +c.getAttribute('width'), h = +c.getAttribute('height');
+      assert.ok(x >= 0 && y >= 0 && x + w <= vw && y + h <= vh, `${kind} cut escapes the viewBox`);
+    }
+  }
+
+  // Masks are referenced by id, so two silhouettes on one page must not collide.
+  const a = silhouette('phone').querySelector('mask').getAttribute('id');
+  const b = silhouette('phone').querySelector('mask').getAttribute('id');
+  assert.notEqual(a, b, 'mask ids must be unique per instance');
+
+  // An unknown kind must still draw something rather than throw.
+  assert.ok(silhouette('watch').querySelector('rect'), 'unknown kinds fall back');
+
+  console.log('silhouettes: real device shapes, unique masks');
+}

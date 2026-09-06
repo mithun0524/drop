@@ -305,46 +305,26 @@ button {
   }
 }
 
-/* One silhouette set, sized by --dev. Using real width/height rather than
-   transform keeps the layout box honest, so a silhouette dropped into a 30px
-   circle actually occupies 30px instead of overflowing it. */
-.dev-phone,
-.dev-tablet,
-.dev-laptop {
+/* One silhouette set, sized by --dev. Real width/height rather than transform
+   keeps the layout box honest, so a silhouette dropped into a 30px circle
+   occupies 30px instead of overflowing it. */
+.dev {
   --dev: 1;
+  display: block;
   flex: none;
+  overflow: visible;
 }
 .dev-phone {
   width: calc(50px * var(--dev));
   height: calc(80px * var(--dev));
-  border-radius: calc(11px * var(--dev));
-  background: currentColor;
 }
 .dev-tablet {
   width: calc(64px * var(--dev));
   height: calc(86px * var(--dev));
-  border-radius: calc(9px * var(--dev));
-  background: currentColor;
 }
 .dev-laptop {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: calc(4px * var(--dev));
-}
-.dev-laptop i {
-  display: block;
-  width: calc(70px * var(--dev));
-  height: calc(46px * var(--dev));
-  border-radius: calc(5px * var(--dev));
-  background: currentColor;
-}
-.dev-laptop b {
-  display: block;
   width: calc(86px * var(--dev));
-  height: calc(8px * var(--dev));
-  border-radius: calc(4px * var(--dev));
-  background: currentColor;
+  height: calc(58px * var(--dev));
 }
 
 /* ---- footer: who you are ------------------------------------------- */
