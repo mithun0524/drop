@@ -47,6 +47,7 @@ const S = {
   stalled: false,
   backTo: 'radar', // where settings sub-screens return to
   qrUrl: null, // the link the enlarged QR is showing
+  room: null, // the manual room code we are in, if any
 };
 
 // Renders are coalesced into one animation frame. Transfer progress calls
@@ -336,6 +337,19 @@ function buildReceiver(ch) {
   });
 }
 
+function startPairing() {
+  const code = Math.random().toString(36).slice(2, 6).toUpperCase();
+  net.disconnect();
+  net.connect(code);
+  set({ screen: 'pairshow', code, room: code, backTo: 'radar' });
+}
+
+function stopPairing() {
+  net.disconnect();
+  net.connect(null);
+  set({ screen: 'radar', code: null, room: null });
+}
+
 async function pickTarget(peer) {
   set({ target: peer, screen: 'pick' });
 }
@@ -466,11 +480,7 @@ function radar() {
         el('p', { class: 'body', style: { color: 'var(--dim)' } }, [
           'Open this page on the other device. It takes over one of these blocks the moment it appears.',
         ]),
-        el(
-          'button',
-          { class: 'linkline', onClick: () => set({ screen: 'pairshow', backTo: 'radar' }) },
-          'Not showing up? Pair by hand'
-        ),
+        el('button', { class: 'linkline', onClick: startPairing }, 'Not showing up? Pair by hand'),
         el(
           'div',
           { class: 'swatches waiting' },
@@ -489,7 +499,9 @@ function radar() {
       liveLine(
         S.files.length
           ? `${S.files.length} file${S.files.length > 1 ? 's' : ''} ready — pick a device`
-          : `${count} device${count > 1 ? 's' : ''} on this Wi-Fi`
+          : S.room
+            ? `${count} in room ${S.room}`
+            : `${count} device${count > 1 ? 's' : ''} on this Wi-Fi`
       ),
       gearBtn(),
     ]),
@@ -914,9 +926,8 @@ function settings() {
         }),
 
       el('div', { class: 'section' }, 'Pairing'),
-      row('Show my code', 'For when devices do not find each other', () =>
-        set({ screen: 'pairshow', backTo: 'settings' })
-      ),
+      S.room && row('Leave room ' + S.room, 'Go back to finding devices automatically', stopPairing),
+      row('Show my code', 'For when devices do not find each other', startPairing),
       row('Enter their code', 'Join a device that showed you a code', () =>
         set({ screen: 'pairenter', entry: '', backTo: 'settings' })
       ),
@@ -1134,38 +1145,32 @@ function qrBig() {
 
 function pairShow() {
   const c = COLORS[S.me.color];
-  const code = (S.code ??= Math.random().toString(36).slice(2, 6).toUpperCase());
+  const code = S.code ?? '';
   return [
     el('div', { class: 'screen' }, [
       eyebrow('Pair by hand'),
-      head('Type this code<br>on the other device.', 'sm'),
-      el('div', { class: 'qrwrap pair' }, [
-        el(
-          'button',
-          {
-            class: 'qrbox',
-            'aria-label': 'Enlarge the QR code',
-            onClick: () => set({ screen: 'qr', qrUrl: appUrl(code), backTo: 'pairshow' }),
-          },
-          [qrSvg(appUrl(code), 'Scan to join this room')]
-        ),
-      ]),
+      head('Type this code<br>on the other device.', 'sm tight'),
       el(
         'div',
         { class: 'code' },
-        code
-          .split('')
-          .map((v) => el('div', { style: { background: c, color: ON[S.me.color] } }, v))
+        code.split('').map((v) => el('div', { style: { background: c, color: ON[S.me.color] } }, v))
       ),
       el('p', { class: 'body sm', style: { color: 'var(--dim)' } }, [
-        'Use this when the two devices are on the same Wi-Fi but can’t see each other automatically.',
+        'You are in this room now. Anyone who enters the code joins you here.',
       ]),
+      // The QR does a different job to the one on the front screen — it carries
+      // the room, not just the page — but the headline is the code, so the QR
+      // stays one tap away rather than taking a third of the screen.
+      el(
+        'button',
+        {
+          class: 'linkline',
+          onClick: () => set({ screen: 'qr', qrUrl: appUrl(code), backTo: 'pairshow' }),
+        },
+        'or show a QR to scan'
+      ),
       el('div', { class: 'spring' }),
-      blackBtn('Join this room', () => {
-        net.disconnect();
-        net.connect(code);
-        set({ screen: 'radar', backTo: 'radar' });
-      }),
+      blackBtn('Done', () => set({ screen: 'radar', backTo: 'radar' })),
       plainBtn('I have their code instead', () =>
         set({ screen: 'pairenter', entry: '', backTo: S.backTo })
       ),

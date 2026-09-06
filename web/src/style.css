@@ -686,18 +686,18 @@ button {
 .code {
   display: flex;
   gap: 7px;
-  margin: 22px 0 0;
+  margin: clamp(14px, 2.6vh, 22px) 0 0;
   flex: none;
 }
 .code div {
   flex: 1;
   min-width: 0;
-  aspect-ratio: 3 / 4;
-  max-height: 24vh;
+  aspect-ratio: 4 / 5;
+  max-height: clamp(56px, 11vh, 92px);
   display: grid;
   place-items: center;
   border-radius: 12px;
-  font: 600 clamp(24px, 8.7vw, 38px) / 1 var(--font);
+  font: 600 clamp(22px, 2.6vh + 3.4vw, 36px) / 1 var(--font);
 }
 .keys {
   display: grid;
@@ -1308,4 +1308,12 @@ button {
 }
 .qrfull .btn.ghost {
   max-width: 320px;
+}
+
+
+/* A heading that shares its screen with a code block and three actions. */
+.head.tight {
+  font-size: clamp(20px, 2.4vh + 2.8vw, 32px);
+  line-height: 1.05;
+  margin-top: 10px;
 }
