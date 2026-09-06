@@ -1143,6 +1143,12 @@ button {
    translated them downward, which opened gaps along the top and read as a torn
    edge rather than an equalizer. Scaling from the bottom keeps every bar
    anchored, so only the height varies. */
+.swatches.waiting {
+  /* Bars need a ground to rise out of. Against the white page a short bar
+     reads as a box with its top sliced off; against the footer's black it
+     reads as a bar, which is the whole point. */
+  background: var(--ink);
+}
 .swatches.waiting div {
   transform-origin: bottom;
   animation: swatchwait 2.6s ease-in-out infinite;
@@ -1151,7 +1157,7 @@ button {
 @keyframes swatchwait {
   0%,
   100% {
-    transform: scaleY(0.45);
+    transform: scaleY(0.62);
   }
   50% {
     transform: scaleY(1);
