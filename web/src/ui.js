@@ -379,7 +379,9 @@ function footer() {
           class: 'dot',
           style: { background: COLORS[S.me.color], color: ON[S.me.color] },
         },
-        [el('i')]
+        // The same silhouette the tiles use, so your own device is drawn the
+        // way the other person sees it — a laptop reads as a laptop.
+        [silhouette(S.me.kind)]
       ),
       el('div', { class: 'nm' }, S.me.name),
       el('div', { class: 'side' }, 'This ' + kindLabel(S.me.kind).toLowerCase()),

@@ -361,15 +361,16 @@ button {
   place-items: center;
   flex: none;
 }
-.foot .dot i {
-  width: 10px;
-  height: 15px;
-  border-radius: 2.5px;
-  background: currentColor;
+.foot .dot > * {
+  transform: scale(0.19); /* the silhouettes are drawn at tile size */
+}
+.foot .dot .dev-laptop {
+  transform: scale(0.17);
 }
 .foot .nm {
   font: 600 clamp(14px, 4.4vw, 17px) / 1 Inter, sans-serif;
   letter-spacing: -0.01em;
+  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -381,8 +382,13 @@ button {
   text-transform: uppercase;
   opacity: 0.6;
   margin-left: auto;
-  padding-left: 10px;
-  flex: none;
+  padding-left: 12px;
+  /* Shrinkable and clipped with an ellipsis: a long name must eat into this
+     label, never push it off the edge. */
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 @media (max-width: 340px) {
