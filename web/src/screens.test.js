@@ -64,6 +64,12 @@ const STATES = {
   waiting: { target: PEER, files: MANIFEST },
   declined: { target: PEER },
   incoming: { target: PEER, manifest: MANIFEST },
+  'incoming-huge': {
+    screen: 'incoming',
+    target: PEER,
+    manifest: [{ name: 'raw.zip', size: 9e9 }],
+  },
+  'confirm-huge': { screen: 'confirm', target: PEER, files: [{ name: 'raw.zip', size: 9e9 }] },
   awaited: { target: PEER, incomingFrom: PEER },
   sending: { target: PEER, files: MANIFEST, pct: 42, speed: 84, index: 0, fileName: 'x.raw' },
   'sending-queue': { screen: 'sending', target: PEER, files: MANIFEST, pct: 42, speed: 84, showQueue: true, failed: [1] },

@@ -207,3 +207,34 @@ export function memorySink() {
     close: async () => new Blob(parts),
   };
 }
+
+/**
+ * Streams straight to a file the user chose, so nothing is held in memory and
+ * size stops mattering. Only Chromium exposes this, and only from a user
+ * gesture — which is why the handle has to be obtained at the accept tap
+ * rather than when the first byte arrives.
+ */
+export function diskSink(writable) {
+  return {
+    write: (c) => writable.write(c),
+    close: async () => {
+      await writable.close();
+      return null; // already on disk; there is nothing to hand back
+    },
+  };
+}
+
+export const canStreamToDisk = () =>
+  typeof window !== 'undefined' && typeof window.showSaveFilePicker === 'function';
+
+/**
+ * What this browser can hold in memory before the tab is killed. Deliberately
+ * conservative: the peak is the file being assembled plus everything already
+ * received in the batch, and being wrong here means the tab dies mid-transfer
+ * with nothing on screen to explain it.
+ */
+export function memoryCeiling(ua = typeof navigator === 'undefined' ? '' : navigator.userAgent) {
+  if (/iPhone|iPad|iPod/.test(ua)) return 0.7e9;
+  if (/Android/.test(ua)) return 1.2e9;
+  return 1.8e9;
+}

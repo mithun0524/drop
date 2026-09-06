@@ -166,3 +166,32 @@ console.log('transfer: all checks passed');
 }
 
 console.log('transfer: failure-tolerance checks passed');
+
+// 9. A disk sink hands bytes straight to the file and keeps nothing.
+{
+  const written = [];
+  let closed = false;
+  const { diskSink } = await import('./transfer.js');
+  const sink = diskSink({
+    write: (c) => written.push(c),
+    close: async () => (closed = true),
+  });
+  sink.write(new Uint8Array([1, 2, 3]));
+  sink.write(new Uint8Array([4, 5]));
+  const out = await sink.close();
+  assert.equal(out, null, 'nothing is handed back — it is already on disk');
+  assert.ok(closed, 'the file is closed');
+  assert.equal(Buffer.concat(written.map(Buffer.from)).toString('hex'), '0102030405');
+}
+
+// 10. The memory ceiling is per-platform and conservative.
+{
+  const { memoryCeiling } = await import('./transfer.js');
+  const ios = memoryCeiling('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)');
+  const android = memoryCeiling('Mozilla/5.0 (Linux; Android 14)');
+  const desktop = memoryCeiling('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)');
+  assert.ok(ios < android && android < desktop, 'phones hold less than laptops');
+  assert.ok(ios > 0 && desktop < 4e9, 'ceilings stay in a believable range');
+}
+
+console.log('transfer: disk sink and ceiling checks passed');

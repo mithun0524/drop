@@ -20,7 +20,16 @@ import {
 } from './identity.js';
 import { Net } from './net.js';
 import qrcode from 'qrcode-generator';
-import { sendFiles, createReceiver, describe, memorySink, formatSize } from './transfer.js';
+import {
+  sendFiles,
+  createReceiver,
+  describe,
+  memorySink,
+  diskSink,
+  canStreamToDisk,
+  memoryCeiling,
+  formatSize,
+} from './transfer.js';
 
 const app = document.getElementById('app');
 
@@ -51,6 +60,7 @@ const S = {
   qrUrl: null, // the link the enlarged QR is showing
   notice: null, // a transient line about something that just changed
   incomingFrom: null, // a peer that is choosing files for us right now
+  writables: null, // file handles opened at the accept tap, when streaming to disk
 };
 
 // Renders are coalesced into one animation frame. Transfer progress calls
@@ -373,12 +383,14 @@ async function onChannelMessage(from, data) {
 function buildReceiver(ch) {
   const results = [];
   return createReceiver({
-    // ponytail: buffers each file in memory, so a single file is capped around
-    // 1-2GB. Streaming to disk needs showSaveFilePicker(), which browsers only
-    // allow from a user gesture — so it has to be requested on the "hold to
-    // accept" tap, before the first byte arrives. Do that when someone hits
-    // the ceiling; until then this is one sink instead of two code paths.
-    openSink: async () => memorySink(),
+    // Handles are opened at the accept tap, because the save picker is only
+    // allowed from a user gesture. When we have one, bytes go straight to disk
+    // and size stops mattering; otherwise the file is assembled in memory and
+    // the accept screen has already warned about the ceiling.
+    openSink: async (meta, i) => {
+      const w = S.writables?.[i];
+      return w ? diskSink(w) : memorySink();
+    },
     onProgress: ({ got, total, index }) => {
       const secs = (performance.now() - S.startedAt) / 1000;
       set({
@@ -393,7 +405,8 @@ function buildReceiver(ch) {
       if (blob) results.push([meta.name, blob]);
     },
     onFailed: (meta, i) => set({ failed: [...S.failed, i] }),
-    onDone: () => set({ screen: 'saved', results, pct: 100, showQueue: false, stalled: false }),
+    onDone: () =>
+      set({ screen: 'saved', results, pct: 100, showQueue: false, stalled: false, writables: null }),
     onError: (err) => set({ screen: 'vanished', error: err.message }),
   });
 }
@@ -462,16 +475,35 @@ async function startSending(id) {
   }
 }
 
-function accept() {
+async function accept() {
   trust(S.target); // accepting once is what makes auto-accept possible later
+
+  // Must happen inside the gesture that accepted, before any await that would
+  // end it — browsers only open a save picker from a user action.
+  let writables = null;
+  if (canStreamToDisk() && overCeiling(S.manifest)) {
+    try {
+      writables = [];
+      for (const f of S.manifest) {
+        const handle = await window.showSaveFilePicker({ suggestedName: f.name });
+        writables.push(await handle.createWritable());
+      }
+    } catch {
+      writables = null; // picker dismissed — fall back to memory
+    }
+  }
+
   net.channel(S.target.id)?.send(JSON.stringify({ t: 'accept' }));
-  set({ screen: 'receiving', pct: 0, startedAt: performance.now(), bytes: 0 });
+  set({ screen: 'receiving', pct: 0, startedAt: performance.now(), bytes: 0, writables });
 }
+
+const totalOf = (files) => (files ?? []).reduce((a, f) => a + f.size, 0);
+const overCeiling = (files) => totalOf(files) > memoryCeiling();
 
 function decline() {
   net.channel(S.target.id)?.send(JSON.stringify({ t: 'decline' }));
   rx?.abort();
-  set({ screen: 'radar', target: null });
+  set({ screen: 'radar', target: null, writables: null });
 }
 
 function cancel() {
@@ -819,8 +851,9 @@ function awaited() {
 }
 
 function incoming() {
-  const total = S.manifest.reduce((a, f) => a + f.size, 0);
+  const total = totalOf(S.manifest);
   const n = S.manifest.length;
+  const heavy = overCeiling(S.manifest);
 
   let timer = null;
   const startHold = () => {
@@ -847,6 +880,24 @@ function incoming() {
           n > 1 ? '' : 'sm'
         ),
         el('div', { class: 'meta' }, formatSize(total)),
+        // Too big to hold, and this browser cannot stream to disk: say so now
+        // rather than let the tab die halfway through with nothing on screen.
+        heavy && !canStreamToDisk()
+          ? el('div', { class: 'warn' }, [
+              el('b', {}, 'Bigger than this browser can hold.'),
+              el(
+                'span',
+                {},
+                'It may run out of memory before it finishes. Ask them to send fewer files at a ' +
+                  'time, or open Drop in Chrome on a computer to save straight to disk.'
+              ),
+            ])
+          : heavy
+            ? el('div', { class: 'warn ok' }, [
+                el('b', {}, 'Large transfer — you will be asked where to save.'),
+                el('span', {}, 'Each file is written straight to disk as it arrives.'),
+              ])
+            : null,
       ]),
       el(
         'button',
@@ -861,7 +912,17 @@ function incoming() {
             class: 'fill',
             style: { width: S.hold + '%', background: COLORS[S.target.color] ?? COLORS.blue },
           }),
-          el('span', {}, S.hold >= 100 ? 'Accepting…' : S.hold > 0 ? 'Keep holding…' : 'Hold to accept'),
+          el(
+            'span',
+            {},
+            S.hold >= 100
+              ? 'Accepting…'
+              : S.hold > 0
+                ? 'Keep holding…'
+                : heavy && canStreamToDisk()
+                  ? 'Hold to accept and choose where to save'
+                  : 'Hold to accept'
+          ),
         ]
       ),
       plainBtn('Decline', decline),
@@ -992,6 +1053,12 @@ function confirm_() {
       eyebrow('Confirm'),
       head(`${n} file${n > 1 ? 's' : ''} to<br>${S.target.name}.`, 'sm'),
       el('div', { class: 'meta' }, formatSize(total) + ' total'),
+      total > memoryCeiling()
+        ? el('div', { class: 'warn' }, [
+            el('b', {}, 'This is a lot to send at once.'),
+            el('span', {}, 'Phones may run out of memory receiving it. Fewer files at a time is safer.'),
+          ])
+        : null,
       el(
         'div',
         { class: 'scroll', style: { marginTop: '20px' } },

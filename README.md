@@ -68,6 +68,19 @@ front screen can carry one, so scanning works whether or not IP grouping does.
 Codes expire after ten minutes and an unknown one falls back to your own room
 rather than stranding you somewhere empty.
 
+## Size limits
+
+Sending has no limit: files are read in 64KB slices with backpressure, so the
+sender never holds more than a few megabytes.
+
+Receiving depends on the browser. Chromium can stream straight to disk via the
+File System Access API, and the handles are opened at the accept tap because a
+save picker is only allowed from a user gesture — there the size is unbounded.
+Everywhere else the file is assembled in memory, which caps a transfer at
+roughly 1.8GB on a desktop, 1.2GB on Android and 0.7GB on iOS. Both the sender
+and the receiver are warned before a transfer that would exceed it, rather than
+finding out when the tab is killed.
+
 ## Scope
 
 LAN only. There is no TURN relay, so if two devices can't reach each other
