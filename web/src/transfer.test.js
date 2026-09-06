@@ -118,3 +118,51 @@ assert.equal(formatSize(1_500_000), '1.5 MB');
 assert.equal(formatSize(1_240_000_000), '1.24 GB');
 
 console.log('transfer: all checks passed');
+
+// 7. One unreadable file is skipped; the rest of the batch still arrives.
+{
+  const good1 = Buffer.from('first file');
+  const good2 = Buffer.from(Array.from({ length: 20_000 }, (_, i) => i % 251));
+  const broken = new File([Buffer.alloc(4000, 1)], 'broken.bin');
+  // Simulate a file that vanishes mid-read.
+  broken.slice = () => ({ arrayBuffer: async () => { throw new Error('NotReadableError'); } });
+
+  const ch = fakeChannel();
+  const files = [fileFrom('a.txt', good1), broken, fileFrom('c.bin', good2)];
+  ch.send(JSON.stringify({ t: 'offer', files: describe(files) }));
+  const failed = await sendFiles(ch, files, { chunkSize: 8192 });
+  assert.deepEqual(failed, [1], 'exactly the broken file failed');
+
+  const saved = [];
+  const skipped = [];
+  let doneFailed = null;
+  const errors = [];
+  const rx = createReceiver({
+    openSink: async () => {
+      const parts = [];
+      return { write: (c) => parts.push(c), close: async () => Buffer.concat(parts) };
+    },
+    onFile: (m, i, r) => saved.push([m.name, r]),
+    onFailed: (m, i) => skipped.push(m.name),
+    onDone: (m, t, f) => (doneFailed = f),
+    onError: (e) => errors.push(e),
+  });
+  for (const msg of ch.out) await rx.handle(msg);
+
+  assert.equal(errors.length, 0, 'a skipped file is not a transfer error');
+  assert.deepEqual(skipped, ['broken.bin']);
+  assert.deepEqual(saved.map((s) => s[0]), ['a.txt', 'c.bin'], 'the other two survived');
+  assert.equal(sha(saved[1][1]), sha(good2), 'the file after the failure is intact');
+  assert.deepEqual(doneFailed, [1]);
+}
+
+// 8. Cancelling still stops everything — it is not a per-file failure.
+{
+  const ctl = new AbortController();
+  const ch = fakeChannel();
+  const big = fileFrom('big.bin', Buffer.alloc(100_000, 3));
+  ctl.abort();
+  await assert.rejects(() => sendFiles(ch, [big], { signal: ctl.signal }), /cancelled/);
+}
+
+console.log('transfer: failure-tolerance checks passed');

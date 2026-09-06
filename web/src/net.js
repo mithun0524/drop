@@ -6,6 +6,7 @@
 
 const ICE = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 const CONNECT_TIMEOUT = 10_000;
+const STALL_GIVEUP = 20_000; // how long a 'disconnected' peer gets to come back
 
 // Same origin by default — the worker serves both the app and /ws. Override
 // only when running the app off a separate dev server.
@@ -24,6 +25,7 @@ export class Net extends EventTarget {
     this.code = null;
     this.retry = 0;
     this.closed = false;
+    this.stallTimers = new Map();
   }
 
   emit(type, detail) {
@@ -98,8 +100,27 @@ export class Net extends EventTarget {
     const pc = new RTCPeerConnection(ICE);
     pc.onicecandidate = (e) => e.candidate && this.send(id, { candidate: e.candidate });
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'failed') this.emit('blocked', id);
-      if (pc.connectionState === 'disconnected') this.emit('gone', id);
+      // 'disconnected' is recoverable — Wi-Fi blips land here and often come
+      // back within seconds, so it stalls rather than kills. Only 'failed'
+      // and 'closed' are terminal.
+      if (pc.connectionState === 'disconnected') {
+        clearTimeout(this.stallTimers.get(id));
+        this.stallTimers.set(
+          id,
+          setTimeout(() => this.emit('gone', id), STALL_GIVEUP)
+        );
+        this.emit('stalled', id);
+      }
+      if (pc.connectionState === 'connected') {
+        clearTimeout(this.stallTimers.get(id));
+        this.stallTimers.delete(id);
+        this.emit('resumed', id);
+      }
+      if (pc.connectionState === 'failed') {
+        clearTimeout(this.stallTimers.get(id));
+        this.emit('blocked', id);
+      }
+      if (pc.connectionState === 'closed') this.emit('gone', id);
     };
     return pc;
   }
@@ -127,12 +148,14 @@ export class Net extends EventTarget {
         clearTimeout(timer);
         resolve();
       };
-      pc.onconnectionstatechange = () => {
+      // addEventListener, not onconnectionstatechange — assigning would clobber
+      // the stall/resume handler newPc() installed.
+      pc.addEventListener('connectionstatechange', () => {
         if (pc.connectionState === 'failed') {
           clearTimeout(timer);
           reject(new Error('blocked'));
         }
-      };
+      });
     });
 
     this.wire(id, ch);

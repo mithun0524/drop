@@ -65,3 +65,61 @@ export function saveMe(me) {
     /* storage blocked — identity just won't persist across reloads */
   }
 }
+
+// ---- settings -------------------------------------------------------------
+// Everything here is per-device and lives only in this browser. Nothing is
+// sent anywhere, which is the point of the product.
+
+const SETTINGS_KEY = 'drop.settings';
+const TRUSTED_KEY = 'drop.trusted';
+
+const DEFAULTS = {
+  autoAccept: false, // skip hold-to-accept for devices you've accepted before
+};
+
+const read = (key, fallback) => {
+  try {
+    const v = JSON.parse(localStorage.getItem(key));
+    return v ?? fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const write = (key, value) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* storage blocked — the setting just won't survive a reload */
+  }
+};
+
+export const loadSettings = () => ({ ...DEFAULTS, ...read(SETTINGS_KEY, {}) });
+export const saveSettings = (s) => write(SETTINGS_KEY, s);
+
+// A peer id is regenerated every connection, so trust is keyed on the thing a
+// person actually recognises: the colour and name they picked.
+const peerKey = (peer) => `${peer.color}|${peer.name}`;
+
+export const loadTrusted = () => read(TRUSTED_KEY, []);
+export const isTrusted = (peer) => peer && loadTrusted().includes(peerKey(peer));
+
+export function trust(peer) {
+  if (!peer) return;
+  const list = loadTrusted();
+  const k = peerKey(peer);
+  if (!list.includes(k)) write(TRUSTED_KEY, [...list, k]);
+}
+
+export function forgetTrusted() {
+  write(TRUSTED_KEY, []);
+}
+
+export function resetIdentity() {
+  try {
+    localStorage.removeItem(KEY);
+    localStorage.removeItem(TRUSTED_KEY);
+  } catch {
+    /* nothing to clear */
+  }
+}

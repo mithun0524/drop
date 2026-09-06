@@ -1,7 +1,21 @@
 // Screens and state. One render function, one state object — the whole app is
 // small enough that a framework would be more code than it saves.
 
-import { COLORS, ON, KEYS, NAMES, loadMe, saveMe } from './identity.js';
+import {
+  COLORS,
+  ON,
+  KEYS,
+  NAMES,
+  loadMe,
+  saveMe,
+  loadSettings,
+  saveSettings,
+  isTrusted,
+  trust,
+  loadTrusted,
+  forgetTrusted,
+  resetIdentity,
+} from './identity.js';
 import { Net } from './net.js';
 import { sendFiles, createReceiver, describe, memorySink, formatSize } from './transfer.js';
 
@@ -10,6 +24,7 @@ const app = document.getElementById('app');
 const S = {
   screen: 'radar', // see render() below
   me: loadMe(),
+  settings: loadSettings(),
   peers: [],
   status: 'online', // online | reconnecting
   target: null, // peer we're sending to / receiving from
@@ -26,6 +41,10 @@ const S = {
   entry: '',
   bytes: 0,
   startedAt: 0,
+  failed: [], // indices skipped during the current transfer
+  showQueue: false, // transfer screen: big numeral vs per-file queue
+  stalled: false,
+  backTo: 'radar', // where settings sub-screens return to
 };
 
 const set = (patch) => {
@@ -73,6 +92,35 @@ const ghostBtn = (label, on) => el('button', { class: 'btn ghost', onClick: on }
 
 const plainBtn = (label, on) => el('button', { class: 'btn plain', onClick: on }, label);
 
+
+const closeBtn = (on) =>
+  el('button', { class: 'gear close', 'aria-label': 'Close', onClick: on }, [el('span'), el('span')]);
+
+const gearBtn = () =>
+  el(
+    'button',
+    { class: 'gear', 'aria-label': 'Settings', onClick: () => set({ screen: 'settings' }) },
+    [el('span'), el('span'), el('span')]
+  );
+
+const row = (label, sub, onClick, extra) =>
+  el('button', { class: 'row', onClick }, [
+    el('div', { style: { minWidth: 0 } }, [
+      el('div', { class: 'row-label' }, label),
+      sub && el('div', { class: 'row-sub' }, sub),
+    ]),
+    extra ?? el('div', { class: 'chev' }),
+  ]);
+
+const toggleRow = (label, sub, on, onChange) =>
+  el('button', { class: 'row', role: 'switch', 'aria-checked': String(on), onClick: onChange }, [
+    el('div', { style: { minWidth: 0 } }, [
+      el('div', { class: 'row-label' }, label),
+      sub && el('div', { class: 'row-sub' }, sub),
+    ]),
+    el('div', { class: 'switch' + (on ? ' on' : '') }, [el('i')]),
+  ]);
+
 // ---------------------------------------------------------------- networking
 
 net.addEventListener('peers', (e) => set({ peers: e.detail }));
@@ -82,11 +130,20 @@ net.addEventListener('blocked', () => {
   if (S.screen === 'connecting' || S.screen === 'waiting') set({ screen: 'blocked' });
 });
 
+net.addEventListener('stalled', (e) => {
+  if (S.target?.id === e.detail && (S.screen === 'sending' || S.screen === 'receiving'))
+    set({ stalled: true });
+});
+
+net.addEventListener('resumed', (e) => {
+  if (S.target?.id === e.detail) set({ stalled: false });
+});
+
 net.addEventListener('gone', (e) => {
   if (S.target?.id !== e.detail) return;
   if (S.screen === 'sending' || S.screen === 'receiving') {
     rx?.abort();
-    set({ screen: 'vanished' });
+    set({ screen: 'vanished', stalled: false });
   } else if (S.screen === 'waiting' || S.screen === 'confirm') {
     set({ screen: 'radar', target: null });
   }
@@ -109,7 +166,10 @@ async function onChannelMessage(from, data) {
       const peer = net.peers.get(from) ?? { id: from, name: 'Someone', color: 'blue' };
       rx = buildReceiver(net.channel(from));
       await rx.handle(data);
-      return set({ screen: 'incoming', target: peer, manifest: m.files, hold: 0 });
+      set({ screen: 'incoming', target: peer, manifest: m.files, hold: 0, failed: [] });
+      // A device you've accepted from before skips the hold, if you asked for it.
+      if (S.settings.autoAccept && isTrusted(peer)) accept();
+      return;
     }
     if (m.t === 'accept') return startSending(from);
     if (m.t === 'decline') return set({ screen: 'declined' });
@@ -143,7 +203,8 @@ function buildReceiver(ch) {
     onFile: (meta, i, blob) => {
       if (blob) results.push([meta.name, blob]);
     },
-    onDone: () => set({ screen: 'saved', results, pct: 100 }),
+    onFailed: (meta, i) => set({ failed: [...S.failed, i] }),
+    onDone: () => set({ screen: 'saved', results, pct: 100, showQueue: false, stalled: false }),
     onError: (err) => set({ screen: 'vanished', error: err.message }),
   });
 }
@@ -166,10 +227,11 @@ async function offerFiles(peer, files) {
 async function startSending(id) {
   const ch = net.channel(id);
   abort = new AbortController();
-  set({ screen: 'sending', pct: 0, startedAt: performance.now(), bytes: 0 });
+  set({ screen: 'sending', pct: 0, startedAt: performance.now(), bytes: 0, failed: [] });
   try {
     await sendFiles(ch, S.files, {
       signal: abort.signal,
+      onFailed: (i) => set({ failed: [...S.failed, i] }),
       onProgress: ({ sent, total, index }) => {
         const secs = (performance.now() - S.startedAt) / 1000;
         set({
@@ -181,13 +243,14 @@ async function startSending(id) {
         });
       },
     });
-    set({ screen: 'done', pct: 100 });
+    set({ screen: 'done', pct: 100, showQueue: false, stalled: false });
   } catch (err) {
     if (err.message !== 'cancelled') set({ screen: 'vanished', error: err.message });
   }
 }
 
 function accept() {
+  trust(S.target); // accepting once is what makes auto-accept possible later
   net.channel(S.target.id)?.send(JSON.stringify({ t: 'accept' }));
   set({ screen: 'receiving', pct: 0, startedAt: performance.now(), bytes: 0 });
 }
@@ -210,7 +273,7 @@ function cancel() {
 const input = el('input', { type: 'file', multiple: true, style: { display: 'none' } });
 document.body.append(input);
 input.addEventListener('change', () => {
-  if (input.files.length) offerFiles(S.target, [...input.files]);
+  if (input.files.length) set({ files: [...input.files], screen: 'confirm' });
   input.value = '';
 });
 
@@ -229,7 +292,7 @@ document.addEventListener('drop', (e) => {
   if (!files.length) return;
   // Drop with one peer around goes straight to them; otherwise hold the files
   // and let the next tile tap send them.
-  if (S.peers.length === 1) offerFiles(S.peers[0], files);
+  if (S.peers.length === 1) set({ files, target: S.peers[0], screen: 'confirm' });
   else set({ files, screen: 'radar' });
 });
 
@@ -241,7 +304,8 @@ function radar() {
 
   if (count === 0) {
     return [
-      el('div', { class: 'screen', style: { justifyContent: 'flex-end' } }, [
+      el('div', { class: 'topbar' }, [eyebrow('Nearby'), gearBtn()]),
+      el('div', { class: 'screen', style: { justifyContent: 'flex-end', paddingTop: 0 } }, [
         head('Nobody else<br>is here yet.'),
         el('p', { class: 'body', style: { color: 'var(--dim)' } }, [
           'Open this page on the other device. It takes over one of these blocks the moment it appears.',
@@ -259,12 +323,13 @@ function radar() {
 
   return [
     S.status === 'reconnecting' && el('div', { class: 'banner' }, 'Lost the network — reconnecting'),
-    el('div', { style: { padding: '0 26px 14px' } }, [
+    el('div', { class: 'topbar' }, [
       eyebrow(
         S.files.length
           ? `${S.files.length} file${S.files.length > 1 ? 's' : ''} ready — pick a device`
           : `${count} device${count > 1 ? 's' : ''} on this Wi-Fi`
       ),
+      gearBtn(),
     ]),
     el(
       'div',
@@ -385,7 +450,7 @@ function identity() {
         const me = { ...S.me, fresh: false };
         saveMe(me);
         net.setMe({ name: me.name, color: me.color, kind: me.kind });
-        set({ me, screen: 'radar' });
+        set({ me, screen: S.backTo === 'settings' ? 'settings' : 'radar', backTo: 'radar' });
       }),
     ]),
   ];
@@ -517,21 +582,40 @@ function transfer() {
     el('div', { class: 'layer' + (ink === on ? ' knock' : ''), style: { color: ink } }, [
       el(
         'div',
-        { class: 'eyebrow', style: { opacity: 0.62, whiteSpace: 'nowrap' } },
-        (receiving ? 'Receiving from ' : 'Sending to ') + S.target.name
+        { class: 'eyebrow', style: { opacity: 0.62 } },
+        S.stalled
+          ? `Lost ${S.target.name} — holding on`
+          : (receiving ? 'Receiving from ' : 'Sending to ') + S.target.name
       ),
-      el('div', { class: 'pct' }, [el('b', {}, pct), el('i', {}, '%')]),
+      el('div', { class: 'pct' + (S.stalled ? ' stalled' : '') }, [
+        el('b', {}, pct),
+        el('i', {}, '%'),
+      ]),
       el(
         'div',
         { class: 'subline' },
-        S.speed ? `${S.speed.toFixed(0)} MB/s · ${eta} s left` : 'Starting…'
+        S.stalled
+          ? 'Waiting for them to come back…'
+          : S.speed
+            ? `${S.speed.toFixed(0)} MB/s · ${eta} s left`
+            : 'Starting…'
       ),
       el('div', { class: 'curfile' }, S.fileName),
       el(
         'div',
         { class: 'eyebrow', style: { marginTop: '10px' } },
-        `File ${S.index + 1} of ${count} · ${formatSize(total)}`
+        S.stalled
+          ? 'Paused · nothing lost yet'
+          : `File ${S.index + 1} of ${count} · ${formatSize(total)}` +
+            (S.failed.length ? ` · ${S.failed.length} failed` : '')
       ),
+      count > 1 &&
+        ink !== on &&
+        el(
+          'button',
+          { class: 'btn plain queue-toggle', onClick: () => set({ showQueue: !S.showQueue }) },
+          S.showQueue ? 'Hide file list' : `Show all ${count} files`
+        ),
       ink === on
         ? el(
             'div',
@@ -559,8 +643,33 @@ function transfer() {
           ),
     ]);
 
+  if (S.showQueue && count > 1) {
+    const files = receiving ? S.manifest : S.files;
+    return [
+      el('div', { class: 'screen' }, [
+        el('div', { class: 'topbar flush' }, [
+          eyebrow((receiving ? 'Receiving from ' : 'Sending to ') + S.target.name),
+          closeBtn(() => set({ showQueue: false })),
+        ]),
+        el('div', { class: 'queue-head' }, [
+          el('div', { class: 'queue-pct' }, [pct, el('span', {}, '%')]),
+          el('div', { style: { textAlign: 'right' } }, [
+            el('div', { class: 'meta', style: { margin: 0 } }, `${S.speed.toFixed(0)} MB/s`),
+            el('div', { class: 'eyebrow', style: { marginTop: '8px' } }, `File ${S.index + 1} of ${count}`),
+          ]),
+        ]),
+        el('div', { class: 'bar' }, [el('i', { style: { width: pct + '%', background: c } })]),
+        queueView(files, count),
+        el('p', { class: 'body sm', style: { color: 'var(--dim)', margin: '10px 0 0' } }, [
+          'One file failing does not stop the others.',
+        ]),
+        ghostBtn('Stop everything', cancel),
+      ]),
+    ];
+  }
+
   return [
-    el('div', { class: 'xfer' }, [
+    el('div', { class: 'xfer' + (S.stalled ? ' stalled' : '') }, [
       el('div', { class: 'fill', style: { height: pct + '%', background: c } }),
       content('#101014'),
       // The same content again, in the ink that reads on the colour, clipped to
@@ -570,6 +679,138 @@ function transfer() {
       }),
     ]),
   ];
+}
+
+
+function confirm_() {
+  const total = S.files.reduce((a, f) => a + f.size, 0);
+  const n = S.files.length;
+  return [
+    el('div', { class: 'screen' }, [
+      eyebrow('Confirm'),
+      head(`${n} file${n > 1 ? 's' : ''} to<br>${S.target.name}.`, 'sm'),
+      el('div', { class: 'meta' }, formatSize(total) + ' total'),
+      el(
+        'div',
+        { class: 'scroll', style: { marginTop: '20px' } },
+        S.files.map((f) =>
+          el('div', { class: 'filerow' }, [
+            el('span', {}, f.name),
+            el('span', {}, formatSize(f.size)),
+          ])
+        )
+      ),
+      blackBtn('Send', () => offerFiles(S.target, S.files)),
+      plainBtn('Cancel', () => set({ screen: 'radar', files: [], target: null })),
+    ]),
+  ];
+}
+
+function settings() {
+  const trusted = loadTrusted();
+  const back = () => set({ screen: S.backTo === 'settings' ? 'radar' : S.backTo });
+  return [
+    el('div', { class: 'screen' }, [
+      el('div', { class: 'topbar flush' }, [eyebrow('Settings'), closeBtn(back)]),
+
+      el(
+        'button',
+        {
+          class: 'mepreview tappable',
+          style: { background: COLORS[S.me.color], color: ON[S.me.color], marginTop: '10px' },
+          onClick: () => set({ screen: 'identity', backTo: 'settings' }),
+        },
+        [
+          el('div', { class: 'me-chip' }),
+          el('div', { style: { minWidth: 0, textAlign: 'left' } }, [
+            el('div', { class: 'me-name' }, S.me.name),
+            el('div', { class: 'kind', style: { marginTop: '8px' } }, 'Tap to change colour or name'),
+          ]),
+        ]
+      ),
+
+      el('div', { class: 'section' }, 'Receiving'),
+      toggleRow(
+        'Accept without asking',
+        trusted.length
+          ? `From ${trusted.length} device${trusted.length > 1 ? 's' : ''} you've accepted before`
+          : "Applies once you've accepted from a device at least once",
+        S.settings.autoAccept,
+        () => {
+          const next = { ...S.settings, autoAccept: !S.settings.autoAccept };
+          saveSettings(next);
+          set({ settings: next });
+        }
+      ),
+      trusted.length > 0 &&
+        row('Forget those devices', trusted.join(' · ').replace(/[a-z]+\|/g, ''), () => {
+          forgetTrusted();
+          set({});
+        }),
+
+      el('div', { class: 'section' }, 'Pairing'),
+      row('Show my code', 'For when devices do not find each other', () =>
+        set({ screen: 'pairshow', backTo: 'settings' })
+      ),
+      row('Enter their code', 'Join a device that showed you a code', () =>
+        set({ screen: 'pairenter', entry: '', backTo: 'settings' })
+      ),
+
+      el('div', { class: 'section' }, 'This device'),
+      row('Reset identity', 'Get a new colour and name', () => {
+        resetIdentity();
+        const me = loadMe();
+        net.setMe({ name: me.name, color: me.color, kind: me.kind });
+        set({ me, screen: 'identity', backTo: 'settings' });
+      }),
+
+      el('div', { class: 'section' }, 'About'),
+      el('p', { class: 'body sm', style: { color: 'var(--dim)', margin: '4px 0 0' } }, [
+        'Files move straight from one device to the other over your local network. ' +
+          'They are never uploaded, stored, or seen by any server — the only thing ' +
+          'the server does is introduce the two devices to each other.',
+      ]),
+      el('p', { class: 'body sm', style: { color: 'var(--dim)', margin: '12px 0 0' } }, [
+        'There is no account, and nothing you do here is recorded anywhere but this browser.',
+      ]),
+      el('div', { class: 'version' }, 'Drop · LAN only · v1'),
+      el('div', { class: 'spring' }),
+      ghostBtn('Done', back),
+    ]),
+  ];
+}
+
+/** Per-file queue — the other half of the transfer screen. */
+function queueView(files, count) {
+  return el(
+    'div',
+    { class: 'scroll', style: { marginTop: '12px' } },
+    files.map((f, i) => {
+      const failed = S.failed.includes(i);
+      const done = !failed && i < S.index;
+      const active = i === S.index && !failed;
+      return el('div', { class: 'qrow' }, [
+        el('div', {
+          class: 'dot',
+          style: {
+            background: failed
+              ? COLORS.red
+              : done
+                ? '#c9ccd2'
+                : active
+                  ? COLORS[S.target?.color] ?? COLORS.blue
+                  : 'var(--line)',
+          },
+        }),
+        el('div', { class: 'nm' }, f.name),
+        el(
+          'div',
+          { class: 'stat', style: failed ? { color: COLORS.red } : active ? { color: 'var(--ink)' } : {} },
+          failed ? 'FAILED' : done ? 'DONE' : active ? Math.round(S.pct) + '%' : 'WAITING'
+        ),
+      ]);
+    })
+  );
 }
 
 function done() {
@@ -734,9 +975,11 @@ function pairShow() {
       blackBtn('Join this room', () => {
         net.disconnect();
         net.connect(code);
-        set({ screen: 'radar' });
+        set({ screen: 'radar', backTo: 'radar' });
       }),
-      plainBtn('I have their code instead', () => set({ screen: 'pairenter', entry: '' })),
+      plainBtn('I have their code instead', () =>
+        set({ screen: 'pairenter', entry: '', backTo: S.backTo })
+      ),
     ]),
   ];
 }
@@ -784,7 +1027,7 @@ function pairEnter() {
           )
         )
       ),
-      plainBtn('Back', () => set({ screen: 'radar' })),
+      plainBtn('Back', () => set({ screen: S.backTo, backTo: 'radar' })),
     ]),
   ];
 }
@@ -793,8 +1036,10 @@ function pairEnter() {
 
 const SCREENS = {
   identity,
+  settings,
   radar,
   pick,
+  confirm: confirm_,
   connecting,
   waiting,
   declined,

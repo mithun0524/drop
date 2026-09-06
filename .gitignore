@@ -3,3 +3,4 @@ web/dist/
 web/.env.local
 worker/.wrangler/
 .DS_Store
+web/src/__probe.gen.js

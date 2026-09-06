@@ -5,8 +5,11 @@
 //   JSON string  {t:'accept'} | {t:'decline'}
 //   JSON string  {t:'start',   i}
 //   ArrayBuffer  ... raw chunks, in order, exactly file.size bytes total
-//   JSON string  {t:'end',     i}
-//   JSON string  {t:'done'}
+//   JSON string  {t:'end',     i}   | {t:'skip', i, reason}
+//   JSON string  {t:'done',    failed:[i]}
+//
+// 'skip' is how a single file fails without taking the batch with it: the
+// receiver discards whatever arrived and the sender moves to the next file.
 //
 // Nothing here touches the DOM or WebRTC directly — the channel is passed in,
 // so this file is testable with a fake channel. See transfer.test.js.
@@ -44,33 +47,52 @@ function drain(ch) {
 /**
  * Streams files down the channel, one after another.
  * onProgress({ index, fileSent, sent, total }) fires per chunk.
- * Returns when the last byte is queued and acknowledged by 'done'.
+ * onFailed(index, reason) fires when one file is skipped.
+ *
+ * A file that can't be read (moved, permissions revoked, disk error) is
+ * skipped and the rest continue — cancelling is the only thing that stops
+ * the batch. Returns the indices that failed.
  */
-export async function sendFiles(ch, files, { chunkSize = DEFAULT_CHUNK, onProgress, signal } = {}) {
+export async function sendFiles(
+  ch,
+  files,
+  { chunkSize = DEFAULT_CHUNK, onProgress, onFailed, signal } = {}
+) {
   let sent = 0;
   const total = totalBytes(files);
+  const failed = [];
 
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
     ch.send(JSON.stringify({ t: 'start', i }));
 
     let off = 0;
-    while (off < file.size) {
-      if (signal?.aborted) throw new Error('cancelled');
-      const end = Math.min(off + chunkSize, file.size);
-      const buf = await file.slice(off, end).arrayBuffer();
-      const wait = drain(ch);
-      if (wait) await wait;
-      ch.send(buf);
-      off = end;
-      sent += buf.byteLength;
-      onProgress?.({ index: i, fileSent: off, sent, total });
+    try {
+      while (off < file.size) {
+        if (signal?.aborted) throw new Error('cancelled');
+        const end = Math.min(off + chunkSize, file.size);
+        const buf = await file.slice(off, end).arrayBuffer();
+        const wait = drain(ch);
+        if (wait) await wait;
+        ch.send(buf);
+        off = end;
+        sent += buf.byteLength;
+        onProgress?.({ index: i, fileSent: off, sent, total });
+      }
+      ch.send(JSON.stringify({ t: 'end', i }));
+    } catch (err) {
+      if (err.message === 'cancelled') throw err; // the user stopping is not a file failure
+      failed.push(i);
+      // Keep the byte accounting honest: the rest of this file never ships.
+      sent += file.size - off;
+      ch.send(JSON.stringify({ t: 'skip', i, reason: String(err.message || err) }));
+      onFailed?.(i, String(err.message || err));
+      onProgress?.({ index: i, fileSent: file.size, sent, total });
     }
-
-    ch.send(JSON.stringify({ t: 'end', i }));
   }
 
-  ch.send(JSON.stringify({ t: 'done' }));
+  ch.send(JSON.stringify({ t: 'done', failed }));
+  return failed;
 }
 
 /**
@@ -81,7 +103,15 @@ export async function sendFiles(ch, files, { chunkSize = DEFAULT_CHUNK, onProgre
  * one. Node tests pass their own. Keeping the sink injectable is what lets a
  * 20GB file stream to disk on desktop without a second code path.
  */
-export function createReceiver({ openSink, onOffer, onProgress, onFile, onDone, onError }) {
+export function createReceiver({
+  openSink,
+  onOffer,
+  onProgress,
+  onFile,
+  onFailed,
+  onDone,
+  onError,
+}) {
   let manifest = null;
   let index = -1;
   let sink = null;
@@ -126,8 +156,21 @@ export function createReceiver({ openSink, onOffer, onProgress, onFile, onDone, 
         return;
       }
 
+      if (m.t === 'skip') {
+        // The sender gave up on this one. Throw away the partial rather than
+        // hand over a file that looks whole and isn't.
+        if (sink) {
+          await sink.close().catch(() => {});
+          sink = null;
+        }
+        got += Math.max(0, manifest[m.i].size - fileGot);
+        fileGot = 0;
+        onFailed?.(manifest[m.i], m.i, m.reason);
+        return;
+      }
+
       if (m.t === 'done') {
-        onDone?.(manifest, total);
+        onDone?.(manifest, total, m.failed ?? []);
         return;
       }
       return;

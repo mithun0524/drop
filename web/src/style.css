@@ -14,6 +14,10 @@
   --line2: #dcdfe4;
   --bg: #ffffff;
   --pad: clamp(18px, 6.7vw, 26px); /* screen gutter, 26px at the drawn width */
+  /* The drawing got its top spacing from a fake 52px status bar inside the
+     phone frame. The real OS bar replaces the notch part, but the breathing
+     room under it still has to come from somewhere. */
+  --top: clamp(16px, 5.5vw, 24px);
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
   color-scheme: light;
@@ -103,7 +107,7 @@ button {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding: 0 var(--pad) calc(var(--pad) + var(--safe-b));
+  padding: var(--top) var(--pad) calc(var(--pad) + var(--safe-b));
   overflow-y: auto; /* last-resort escape hatch; normally nothing scrolls */
   -webkit-overflow-scrolling: touch;
   animation: screenIn 0.26s cubic-bezier(0.2, 0.7, 0.3, 1);
@@ -409,7 +413,7 @@ button {
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  padding: 0 var(--pad) calc(var(--pad) + var(--safe-b));
+  padding: var(--top) var(--pad) calc(var(--pad) + var(--safe-b));
 }
 .xfer .knock {
   pointer-events: none;
@@ -778,4 +782,193 @@ button {
   background: rgba(255, 255, 255, 0.86);
   color: var(--ink);
   z-index: 10;
+}
+
+
+/* ---- top bar: label on the left, one control on the right ------------
+   The design keeps the radar bare, so this is the only chrome: a three-dot
+   gear that reads as a control without becoming a toolbar. */
+.topbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: var(--top) var(--pad) 14px;
+}
+.topbar.flush {
+  padding: 0 0 6px;
+}
+
+.gear {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  margin: -10px -10px -10px 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  gap: 3px;
+  grid-auto-rows: 4px;
+  opacity: 0.55;
+  transition: opacity 0.15s;
+}
+.gear:hover,
+.gear:focus-visible {
+  opacity: 1;
+}
+.gear span {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+}
+/* Two dots rotated into an X reads as "close" without a second icon system. */
+.gear.close {
+  grid-auto-rows: auto;
+  gap: 0;
+  position: relative;
+}
+.gear.close span {
+  position: absolute;
+  width: 17px;
+  height: 2px;
+  border-radius: 1px;
+}
+.gear.close span:first-child {
+  transform: rotate(45deg);
+}
+.gear.close span:last-child {
+  transform: rotate(-45deg);
+}
+
+/* ---- settings rows --------------------------------------------------- */
+.section {
+  font: 500 clamp(10px, 2.9vw, 11px) / 1 Inter, sans-serif;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin: 30px 0 6px;
+  flex: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  padding: 16px 0;
+  min-height: 60px;
+  text-align: left;
+  cursor: pointer;
+  flex: none;
+  color: inherit;
+}
+.row:active {
+  background: var(--line);
+}
+.row-label {
+  font: 600 clamp(15px, 4.3vw, 16px) / 1.25 Inter, sans-serif;
+  overflow-wrap: anywhere;
+}
+.row-sub {
+  font: 400 clamp(12.5px, 3.6vw, 13.5px) / 1.35 Inter, sans-serif;
+  color: var(--dim);
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+}
+.chev {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-right: 2px solid var(--line2);
+  border-bottom: 2px solid var(--line2);
+  transform: rotate(-45deg);
+}
+
+.switch {
+  flex: none;
+  width: 50px;
+  height: 30px;
+  border-radius: 15px;
+  background: var(--line2);
+  padding: 3px;
+  transition: background 0.18s;
+}
+.switch i {
+  display: block;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.18s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+.switch.on {
+  background: var(--ink);
+}
+.switch.on i {
+  transform: translateX(20px);
+}
+
+.mepreview.tappable {
+  border: none;
+  width: 100%;
+  cursor: pointer;
+  font: inherit;
+}
+.me-chip {
+  width: 34px;
+  height: 52px;
+  border-radius: 8px;
+  background: currentColor;
+  flex: none;
+}
+.version {
+  font: 500 11px/1 Inter, sans-serif;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin: 26px 0 0;
+}
+
+/* ---- transfer: queue view + stalled ---------------------------------- */
+.queue-toggle {
+  padding: 14px 0 0;
+  min-height: 40px;
+  text-align: left;
+  width: auto;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  opacity: 0.6;
+}
+.queue-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 12px 0 0;
+  flex: none;
+}
+.queue-pct {
+  font: 600 clamp(46px, 17vw, 72px) / 1 Inter, sans-serif;
+  letter-spacing: -0.05em;
+}
+.queue-pct span {
+  font-size: 0.38em;
+  letter-spacing: 0;
+}
+
+/* Stalled: the fill stops climbing and breathes, so a frozen number reads as
+   "waiting" rather than "broken". */
+.xfer.stalled .fill {
+  animation: stall 1.7s ease-in-out infinite;
+}
+.pct.stalled {
+  opacity: 0.72;
 }

@@ -6,12 +6,13 @@
     "dev": "vite web --host",
     "build": "vite build web",
     "preview": "vite preview web --host",
-    "test": "node web/src/transfer.test.js && node worker/networkkey.test.js",
+    "test": "node web/src/transfer.test.js && node worker/networkkey.test.js && node web/src/screens.test.js",
     "worker:dev": "wrangler dev --config worker/wrangler.toml",
     "worker:deploy": "wrangler deploy --config worker/wrangler.toml",
     "test:signal": "node worker/signal.test.js"
   },
   "devDependencies": {
+    "jsdom": "^30.0.1",
     "vite": "^5.4.0",
     "wrangler": "^4.129.0"
   }
