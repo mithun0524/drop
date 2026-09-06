@@ -223,7 +223,7 @@ const eyebrow = (t) => el('div', { class: 'eyebrow' }, t);
 const tether = (theirs) =>
   el('div', { class: 'tether' }, [
     el('div', { class: 'tether-dev' }, [silhouette(S.me.kind)]),
-    el('div', { class: 'tether-line' }),
+    el('div', { class: 'tether-line' }, [el('i')]),
     el('div', { class: 'tether-dev' }, [silhouette(theirs)]),
   ]);
 

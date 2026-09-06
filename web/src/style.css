@@ -1571,24 +1571,43 @@ button {
   flex: none;
 }
 .tether-dev > * {
-  --dev: 0.62;
+  --dev: 0.95;
 }
+/* A single pill travelling from your device to theirs. Dashes left a clipped
+   fragment at each end as they scrolled, and read as decoration; one thing
+   crossing the gap reads as a route being tried. */
 .tether-line {
+  position: relative;
+  overflow: hidden;
   flex: 1 1 auto;
-  max-width: 140px;
-  height: 3px;
+  max-width: 96px;
+  height: 4px;
   border-radius: 2px;
-  /* Dashes travelling from your device towards theirs. */
-  background-image: linear-gradient(90deg, currentColor 55%, transparent 55%);
-  background-size: 16px 3px;
-  background-repeat: repeat-x;
-  opacity: 0.55;
-  animation: travel 0.7s linear infinite;
+}
+.tether-line::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  opacity: 0.24;
+  border-radius: 2px;
+}
+.tether-line i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40%;
+  border-radius: 2px;
+  background: currentColor;
+  animation: shuttle 1.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
 
-@keyframes travel {
-  to {
-    background-position: 16px 0;
+@keyframes shuttle {
+  0% {
+    left: -40%;
+  }
+  100% {
+    left: 100%;
   }
 }
 
@@ -1621,8 +1640,9 @@ button {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tether-line {
+  .tether-line i {
     animation: none;
+    left: 30%;
   }
   .awaiting-dev::before,
   .awaiting-dev::after {
@@ -1633,7 +1653,7 @@ button {
 
 @media (max-height: 700px) {
   .tether-dev > * {
-    --dev: 0.48;
+    --dev: 0.75;
   }
   .awaiting-dev > * {
     --dev: 0.7;
