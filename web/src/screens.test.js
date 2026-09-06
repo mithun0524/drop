@@ -86,6 +86,8 @@ const STATES = {
   saved: { target: PEER, manifest: MANIFEST, results: [['a.raw', { size: 100 }]] },
   blocked: { target: PEER },
   'blocked-with-reason': { screen: 'blocked', target: PEER, error: 'DataChannel closed' },
+  'blocked-timeout': { screen: 'blocked', target: PEER, timedOut: true },
+  'connecting-slow': { screen: 'connecting', target: PEER, slow: true },
   offnet: { target: PEER },
   ios: {},
   nowifi: {},
@@ -126,6 +128,7 @@ for (const [label, patch] of Object.entries(STATES)) {
     failed: [], showQueue: false, stalled: false, status: 'online', pct: 0, speed: 0, index: 0,
     qrUrl: 'https://drop.test/', code: 'QRR4', settings: { autoAccept: false },
     incomingFrom: null, notice: null, resumable: false, tid: null, headroom: 0, saved: false,
+    slow: false, timedOut: false,
   }, patch, { screen });
 
   assert.ok(SCREENS[screen], `no screen registered for "${screen}"`);

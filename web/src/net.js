@@ -5,7 +5,12 @@
 // rather than hanging. That failure IS the "this Wi-Fi blocks it" screen.
 
 const ICE = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
-const CONNECT_TIMEOUT = 10_000;
+// ICE on a LAN is usually sub-second, but mDNS candidate resolution can add
+// several. Ten seconds looked generous and was not: it cut off connections
+// that were still legitimately in 'checking' and reported them as a blocked
+// network. Only a real ICE failure means that; this is just a backstop.
+const CONNECT_TIMEOUT = 45_000;
+const SLOW_AFTER = 6_000;
 const STALL_GIVEUP = 20_000; // how long a 'disconnected' peer gets to come back
 
 // Same origin by default — the worker serves both the app and /ws. Override
@@ -28,6 +33,7 @@ export class Net extends EventTarget {
     this.stallTimers = new Map();
     this.pending = null; // a code waiting for the socket to come up
     this.ice = new Map(); // id -> candidates that arrived before we could use them
+    this.remoteSeen = new Map(); // id -> candidate types the other side offered
     this.net = null; // the network the server saw us arrive from
   }
 
@@ -137,8 +143,16 @@ export class Net extends EventTarget {
       if (pc.iceGatheringState === 'complete')
         console.info('[drop] candidates gathered for', id, [...seen].join(', ') || 'none');
     };
-    pc.oniceconnectionstatechange = () =>
+    pc.oniceconnectionstatechange = async () => {
       console.info('[drop] ice', id, pc.iceConnectionState);
+      if (pc.iceConnectionState !== 'connected') return;
+      // Which pair won says whether it went over the LAN or round the houses.
+      const stats = await pc.getStats().catch(() => null);
+      stats?.forEach((r) => {
+        if (r.type === 'candidate-pair' && r.state === 'succeeded')
+          console.info('[drop] route', id, r.localCandidateId, '->', r.remoteCandidateId);
+      });
+    };
     pc.onconnectionstatechange = () => {
       // 'disconnected' is recoverable — Wi-Fi blips land here and often come
       // back within seconds, so it stalls rather than kills. Only 'failed'
@@ -180,21 +194,20 @@ export class Net extends EventTarget {
     this.send(id, { sdp: pc.localDescription });
 
     await new Promise((resolve, reject) => {
-      const timer = setTimeout(
-        () => reject(new Error('blocked')),
-        CONNECT_TIMEOUT
-      );
-      ch.onopen = () => {
+      const timer = setTimeout(() => reject(new Error('timeout')), CONNECT_TIMEOUT);
+      const slow = setTimeout(() => this.emit('slow', id), SLOW_AFTER);
+      const done = (fn, err) => {
         clearTimeout(timer);
-        resolve();
+        clearTimeout(slow);
+        fn(err);
       };
+      ch.onopen = () => done(resolve);
       // addEventListener, not onconnectionstatechange — assigning would clobber
       // the stall/resume handler newPc() installed.
       pc.addEventListener('connectionstatechange', () => {
-        if (pc.connectionState === 'failed') {
-          clearTimeout(timer);
-          reject(new Error('blocked'));
-        }
+        // 'failed' is ICE giving up, which is the only state that actually
+        // means the two devices cannot reach each other.
+        if (pc.connectionState === 'failed') done(reject, new Error('blocked'));
       });
     });
 
@@ -256,10 +269,19 @@ export class Net extends EventTarget {
     }
 
     if (data.candidate) {
+      const type = /typ (\w+)/.exec(data.candidate.candidate || '')?.[1] ?? '?';
+      const mdns = /\.local/.test(data.candidate.candidate || '');
+      const seen = this.remoteSeen.get(from) ?? new Set();
+      seen.add(type + (mdns ? '(mdns)' : ''));
+      this.remoteSeen.set(from, seen);
+      console.info('[drop] remote candidates from', from, [...seen].join(', '));
+
       // No connection yet, or no remote description yet: hold it rather than
       // throw it away.
       if (!entry?.pc || !entry.pc.remoteDescription) return this.queueIce(from, data.candidate);
-      await entry.pc.addIceCandidate(data.candidate).catch(() => {});
+      await entry.pc.addIceCandidate(data.candidate).catch((e) =>
+        console.warn('[drop] candidate rejected', e?.message)
+      );
     }
   }
 

@@ -72,6 +72,8 @@ const S = {
   writables: null, // file handles opened at the accept tap, when streaming to disk
   tid: null, // this transfer's id, so a retry resumes rather than restarts
   resumable: false, // a dropped transfer that still has progress worth keeping
+  slow: false, // connecting is taking longer than a LAN usually does
+  timedOut: false, // we stopped waiting, rather than ICE reporting failure
 };
 
 // Renders are coalesced into one animation frame. Transfer progress calls
@@ -316,6 +318,10 @@ function resolveNameClash() {
 let noticeTimer = 0;
 net.addEventListener('status', (e) => set({ status: e.detail }));
 
+net.addEventListener('slow', () => {
+  if (S.screen === 'connecting') set({ slow: true });
+});
+
 net.addEventListener('blocked', () => {
   if (S.screen === 'connecting' || S.screen === 'waiting') set({ screen: 'blocked' });
 });
@@ -506,7 +512,7 @@ async function offerFiles(peer, files, tid = null) {
   // Re-offering with the same id is how the other side knows to answer with
   // what it kept instead of starting again.
   const id = tid ?? Math.random().toString(36).slice(2) + Date.now().toString(36);
-  set({ target: peer, files, tid: id, screen: 'connecting', error: null });
+  set({ target: peer, files, tid: id, screen: 'connecting', error: null, slow: false });
   try {
     const ch = await net.open(peer.id);
     ch.send(JSON.stringify({ t: 'offer', tid: id, files: describe(files) }));
@@ -516,7 +522,12 @@ async function offerFiles(peer, files, tid = null) {
     // everything here meant any bug at all was reported as a blocked Wi-Fi,
     // which sends people to fix a network that was never the problem.
     console.error('[drop] could not reach', peer.name, err);
-    set({ screen: 'blocked', error: err?.message === 'blocked' ? null : String(err?.message || err) });
+    const ice = err?.message === 'blocked';
+    set({
+      screen: 'blocked',
+      timedOut: !ice,
+      error: ice || err?.message === 'timeout' ? null : String(err?.message || err),
+    });
   }
 }
 
@@ -910,6 +921,11 @@ function connecting() {
       el('div', { class: 'center' }, [
         tether(S.target.kind),
         head(`Reaching<br>${S.target.name}…`, 'sm'),
+        S.slow
+          ? el('p', { class: 'body sm', style: { opacity: 0.8 } }, [
+              'Taking longer than usual. Some networks make devices work harder to find a route.',
+            ])
+          : null,
       ]),
       ghostBtn('Cancel', cancel),
     ]),
@@ -1496,9 +1512,16 @@ function blocked() {
     el('div', { class: 'screen', style: { background: COLORS.yellow, color: '#101014' } }, [
       eyebrow('This network'),
       el('div', { class: 'center' }, [
-        head("This Wi-Fi<br>won't let devices<br>talk to each<br>other."),
+        head(
+          S.timedOut
+            ? `Gave up reaching<br>${S.target?.name ?? 'them'}.`
+            : "This Wi-Fi<br>won't let devices<br>talk to each<br>other.",
+          S.timedOut ? 'sm' : ''
+        ),
         el('p', { class: 'body' }, [
-          'Café and office guest networks often block it on purpose. Both devices are online, but they can’t reach each other.',
+          S.timedOut
+            ? 'The two devices kept trying without getting through. That usually means the network separates them, even though both are on it.'
+            : 'Café and office guest networks often block it on purpose. Both devices are online, but they can’t reach each other.',
         ]),
         el('p', { class: 'body', style: { fontWeight: 600 } }, [
           'Turn on a phone hotspot, put both devices on it, and everything works again.',
@@ -1511,7 +1534,9 @@ function blocked() {
             ])
           : null,
       ]),
-      blackBtn('Try this network again', () => set({ screen: 'radar', target: null, error: null })),
+      blackBtn('Try again', () =>
+        set({ screen: 'radar', target: null, error: null, timedOut: false })
+      ),
     ]),
   ];
 }
@@ -1766,6 +1791,8 @@ const renderKey = () =>
     S.notice,
     S.incomingFrom?.id,
     S.resumable,
+    S.slow,
+    S.timedOut,
     S.saved,
     S.error,
     S.code,
