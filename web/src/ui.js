@@ -219,6 +219,18 @@ const initials = (name = '') => {
 
 const eyebrow = (t) => el('div', { class: 'eyebrow' }, t);
 
+/** Your device and theirs, with the route being negotiated between them. */
+const tether = (theirs) =>
+  el('div', { class: 'tether' }, [
+    el('div', { class: 'tether-dev' }, [silhouette(S.me.kind)]),
+    el('div', { class: 'tether-line' }),
+    el('div', { class: 'tether-dev' }, [silhouette(theirs)]),
+  ]);
+
+/** Their device, with the question sitting on it. */
+const awaiting = (kind) =>
+  el('div', { class: 'awaiting' }, [el('div', { class: 'awaiting-dev' }, [silhouette(kind)])]);
+
 /** The radar's status line. The dot carries the connection state so it is
  *  always visible; the text says what is true right now. */
 const liveLine = (text) =>
@@ -892,8 +904,8 @@ function connecting() {
     el('div', { class: 'screen' }, [
       eyebrow('Connecting'),
       el('div', { class: 'center' }, [
-        el('div', { class: 'pulse' }),
-        head(`Reaching<br>${S.target.name}…`),
+        tether(S.target.kind),
+        head(`Reaching<br>${S.target.name}…`, 'sm'),
       ]),
       ghostBtn('Cancel', cancel),
     ]),
@@ -906,8 +918,8 @@ function waiting() {
     el('div', { class: 'screen' }, [
       eyebrow('Waiting'),
       el('div', { class: 'center' }, [
-        el('div', { class: 'pulse' }),
-        head(`${S.target.name}<br>has to say yes.`),
+        awaiting(S.target.kind),
+        head(`${S.target.name}<br>has to say yes.`, 'sm'),
         el(
           'div',
           { class: 'meta' },
