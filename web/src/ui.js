@@ -494,7 +494,6 @@ function pairingCode() {
 }
 
 async function pickTarget(peer) {
-  if (!sameNetwork(peer)) return set({ target: peer, screen: 'offnet' });
   // Sent over the signalling socket, before any connection exists: they learn
   // someone is picking for them, and you learn you tapped the right device
   // before spending time in the file picker.
@@ -502,13 +501,18 @@ async function pickTarget(peer) {
   set({ target: peer, screen: 'pick' });
 }
 
+/**
+ * Whether the server saw both devices arrive from the same place.
+ *
+ * A hint, never a veto. Public IP is a decent proxy for "same LAN" and a bad
+ * one at the edges: on a phone hotspot the host reaches the internet over
+ * cellular while the tethered device NATs through it, so two devices on one
+ * LAN look like strangers. Refusing to try there blocks a transfer that would
+ * have worked. ICE is the only thing that actually knows.
+ */
 const sameNetwork = (peer) => !peer?.net || !net.net || peer.net === net.net;
 
 async function offerFiles(peer, files, tid = null) {
-  // The server tells us which network each peer arrived from. Different
-  // networks cannot reach each other over the LAN, and no amount of waiting
-  // changes that.
-  if (!sameNetwork(peer)) return set({ target: peer, files, screen: 'offnet' });
   // Re-offering with the same id is how the other side knows to answer with
   // what it kept instead of starting again.
   const id = tid ?? Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -524,7 +528,9 @@ async function offerFiles(peer, files, tid = null) {
     console.error('[drop] could not reach', peer.name, err);
     const ice = err?.message === 'blocked';
     set({
-      screen: 'blocked',
+      // Now that it has actually failed, a network mismatch is the likeliest
+      // explanation and worth saying instead of blaming the Wi-Fi.
+      screen: ice && !sameNetwork(peer) ? 'offnet' : 'blocked',
       timedOut: !ice,
       error: ice || err?.message === 'timeout' ? null : String(err?.message || err),
     });
@@ -786,7 +792,7 @@ function radar() {
                   ? 'Choosing files for you'
                   : sameNetwork(p)
                     ? kindLabel(p.kind) + ' · tap to send'
-                    : 'Different network'
+                    : kindLabel(p.kind) + ' · may not connect'
               ),
             ]),
           ]
@@ -1493,10 +1499,10 @@ function offNet() {
     el('div', { class: 'screen', style: { background: COLORS.yellow, color: '#101014' } }, [
       eyebrow('Different network'),
       el('div', { class: 'center' }, [
-        head(`${S.target.name} is not<br>on your Wi-Fi.`, 'sm'),
+        head(`Could not reach<br>${S.target.name}.`, 'sm'),
         el('p', { class: 'body' }, [
-          'You found each other through a code, but files move directly between ' +
-            'devices over one local network — there is no route between two.',
+          'The two devices reached the internet from different places, and files ' +
+            'move directly between devices over one local network rather than through a server.',
         ]),
         el('p', { class: 'body', style: { fontWeight: 600 } }, [
           'Join the same Wi-Fi, or put both devices on one phone hotspot.',
