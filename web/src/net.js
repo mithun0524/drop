@@ -136,6 +136,10 @@ export class Net extends EventTarget {
       // is local (permissions, VPN) rather than the other device — worth being
       // able to see when a connection fails.
       const type = /typ (\w+)/.exec(e.candidate.candidate)?.[1];
+      // The address matters: two devices on one router can still sit on
+      // different subnets (Ethernet vs Wi-Fi, a guest VLAN), which looks
+      // identical from the outside and cannot route between them.
+      if (type === 'host') console.info('[drop] my host address', e.candidate.address);
       if (type) seen.add(type);
       this.send(id, { candidate: e.candidate });
     };
@@ -172,6 +176,9 @@ export class Net extends EventTarget {
       }
       if (pc.connectionState === 'failed') {
         clearTimeout(this.stallTimers.get(id));
+        console.warn(
+          '[drop] no candidate pair connected — the two devices could not route to each other'
+        );
         this.emit('blocked', id);
       }
       if (pc.connectionState === 'closed') this.emit('gone', id);
@@ -274,6 +281,8 @@ export class Net extends EventTarget {
       const seen = this.remoteSeen.get(from) ?? new Set();
       seen.add(type + (mdns ? '(mdns)' : ''));
       this.remoteSeen.set(from, seen);
+      if (type === 'host')
+        console.info('[drop] their host address', data.candidate.address ?? data.candidate.candidate);
       console.info('[drop] remote candidates from', from, [...seen].join(', '));
 
       // No connection yet, or no remote description yet: hold it rather than
