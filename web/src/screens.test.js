@@ -85,6 +85,7 @@ const STATES = {
   done: { target: PEER, files: MANIFEST, pct: 100 },
   saved: { target: PEER, manifest: MANIFEST, results: [['a.raw', { size: 100 }]] },
   blocked: { target: PEER },
+  'blocked-with-reason': { screen: 'blocked', target: PEER, error: 'DataChannel closed' },
   offnet: { target: PEER },
   ios: {},
   nowifi: {},

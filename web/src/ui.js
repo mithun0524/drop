@@ -511,8 +511,12 @@ async function offerFiles(peer, files, tid = null) {
     const ch = await net.open(peer.id);
     ch.send(JSON.stringify({ t: 'offer', tid: id, files: describe(files) }));
     set({ screen: 'waiting' });
-  } catch {
-    set({ screen: 'blocked' });
+  } catch (err) {
+    // Only a genuine ICE failure means the network is at fault. Catching
+    // everything here meant any bug at all was reported as a blocked Wi-Fi,
+    // which sends people to fix a network that was never the problem.
+    console.error('[drop] could not reach', peer.name, err);
+    set({ screen: 'blocked', error: err?.message === 'blocked' ? null : String(err?.message || err) });
   }
 }
 
@@ -1499,8 +1503,15 @@ function blocked() {
         el('p', { class: 'body', style: { fontWeight: 600 } }, [
           'Turn on a phone hotspot, put both devices on it, and everything works again.',
         ]),
+        // When the failure was not ICE, say so rather than let the headline
+        // above make a claim about the network that is not true.
+        S.error
+          ? el('p', { class: 'body sm', style: { opacity: 0.7, marginTop: '18px' } }, [
+              'Reported: ' + S.error,
+            ])
+          : null,
       ]),
-      blackBtn('Try this network again', () => set({ screen: 'radar', target: null })),
+      blackBtn('Try this network again', () => set({ screen: 'radar', target: null, error: null })),
     ]),
   ];
 }
