@@ -1141,31 +1141,38 @@ function transfer() {
 
 
 function confirm_() {
-  const total = S.files.reduce((a, f) => a + f.size, 0);
+  const total = totalOf(S.files);
   const n = S.files.length;
   return [
     el('div', { class: 'screen' }, [
       eyebrow('Confirm'),
-      head(`${n} file${n > 1 ? 's' : ''} to<br>${S.target.name}.`, 'sm'),
-      el('div', { class: 'meta' }, formatSize(total) + ' total'),
-      total > 4e9
-        ? el('div', { class: 'warn' }, [
-            el('b', {}, 'This is a lot to send at once.'),
-            el('span', {}, 'The other device needs the free space for it. Fewer files at a time is safer.'),
-          ])
-        : null,
-      // Centres when the list is short, fills and scrolls when it is long, so
-      // one file does not leave a screen of empty colour beneath it.
-      el(
-        'div',
-        { class: 'scroll filelist' },
-        S.files.map((f) =>
-          el('div', { class: 'filerow' }, [
-            el('span', {}, f.name),
-            el('span', {}, formatSize(f.size)),
-          ])
-        )
-      ),
+      // Heading, total and list travel as one block and centre together —
+      // pinned to the top they crowd each other while the list floats alone
+      // in the middle of the screen.
+      el('div', { class: 'center' }, [
+        head(`${n} file${n > 1 ? 's' : ''} to<br>${S.target.name}.`, 'sm'),
+        el('div', { class: 'meta' }, formatSize(total) + ' total'),
+        total > 4e9
+          ? el('div', { class: 'warn' }, [
+              el('b', {}, 'This is a lot to send at once.'),
+              el(
+                'span',
+                {},
+                'The other device needs the free space for it. Fewer files at a time is safer.'
+              ),
+            ])
+          : null,
+        el(
+          'div',
+          { class: 'filelist' },
+          S.files.map((f) =>
+            el('div', { class: 'filerow' }, [
+              el('span', {}, f.name),
+              el('span', {}, formatSize(f.size)),
+            ])
+          )
+        ),
+      ]),
       blackBtn('Send', () => offerFiles(S.target, S.files)),
       plainBtn('Cancel', () => {
         net.hint(S.target.id, 'stopped');

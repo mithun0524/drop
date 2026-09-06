@@ -1512,13 +1512,17 @@ button {
 
 
 /* A file list that centres itself when there is little of it. */
-/* flex:1 from .scroll would grow this to fill the screen, leaving the auto
-   margins no free space to centre with — the list then sits at the top of a
-   tall box with all the emptiness below it. It must not grow. */
+/* Sits inside the centred block, so it takes only the height it needs and
+   scrolls once there is more of it than room. */
 .filelist {
   flex: 0 1 auto;
-  margin: auto 0;
-  padding: clamp(10px, 2.5vh, 22px) 0;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  margin-top: clamp(16px, 3vh, 26px);
+}
+.filelist::-webkit-scrollbar {
+  display: none;
 }
 .filelist .filerow:first-child {
   border-top: 1px solid var(--line);
