@@ -82,6 +82,14 @@ const STATES = {
   ios: {},
   nowifi: {},
   vanished: { target: PEER },
+  'vanished-resumable': {
+    screen: 'vanished',
+    target: PEER,
+    peers: [PEER],
+    files: MANIFEST,
+    pct: 62,
+    resumable: true,
+  },
   qr: { qrUrl: 'https://drop.test/?room=K4RM' },
   'qr-arrived': { screen: 'qr', qrUrl: 'https://drop.test/?room=K4RM', peers: [PEER] },
   pairshow: { code: 'QRR4' },
@@ -109,7 +117,7 @@ for (const [label, patch] of Object.entries(STATES)) {
     screen, peers: [], target: null, files: [], manifest: null, results: [],
     failed: [], showQueue: false, stalled: false, status: 'online', pct: 0, speed: 0, index: 0,
     qrUrl: 'https://drop.test/', code: 'QRR4', settings: { autoAccept: false },
-    incomingFrom: null, notice: null,
+    incomingFrom: null, notice: null, resumable: false, tid: null,
   }, patch, { screen });
 
   assert.ok(SCREENS[screen], `no screen registered for "${screen}"`);

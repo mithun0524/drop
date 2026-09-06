@@ -3,7 +3,7 @@
 
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { sendFiles, createReceiver, describe, formatSize } from './transfer.js';
+import { sendFiles, createReceiver, createSession, describe, formatSize } from './transfer.js';
 
 const sha = (buf) => createHash('sha256').update(Buffer.from(buf)).digest('hex');
 
@@ -195,3 +195,103 @@ console.log('transfer: failure-tolerance checks passed');
 }
 
 console.log('transfer: disk sink and ceiling checks passed');
+
+// 11. A transfer cut off partway resumes byte-exact instead of starting over.
+{
+  const bytes = Buffer.from(Array.from({ length: 250_000 }, (_, i) => (i * 37) % 256));
+  const file = fileFrom('big.bin', bytes);
+  const tid = 'abc123';
+
+  // A sink that survives the drop, the way an open file or a partial buffer does.
+  const parts = [];
+  const session = createSession();
+  const mkReceiver = () =>
+    createReceiver({
+      session,
+      openSink: async () => ({ write: (c) => parts.push(c), close: async () => Buffer.concat(parts) }),
+      onError: (e) => { throw e; },
+    });
+
+  // First attempt: the wire dies after 100KB.
+  const ch1 = fakeChannel();
+  ch1.send(JSON.stringify({ t: 'offer', tid, files: describe([file]) }));
+  const ctl = new AbortController();
+  let moved = 0;
+  await assert.rejects(
+    () =>
+      sendFiles(ch1, [file], {
+        chunkSize: 10_000,
+        signal: ctl.signal,
+        onProgress: ({ sent }) => {
+          moved = sent;
+          if (sent >= 100_000) ctl.abort();
+        },
+      }),
+    /cancelled/
+  );
+
+  const rx1 = mkReceiver();
+  for (const msg of ch1.out) await rx1.handle(msg);
+  const kept = rx1.have()[0];
+  assert.ok(kept > 0 && kept < bytes.length, `partial progress kept, got ${kept}`);
+  assert.ok(rx1.resumable(), 'a partial transfer is resumable');
+  await rx1.abort({ keep: true }); // the connection dropped; the bytes stay
+
+  // Second attempt: the same transfer id comes back.
+  const ch2 = fakeChannel();
+  ch2.send(JSON.stringify({ t: 'offer', tid, files: describe([file]) }));
+  const rx2 = mkReceiver();
+  let resumedFrom = null;
+  const saved = [];
+  const rx = createReceiver({
+    session,
+    openSink: async () => ({ write: (c) => parts.push(c), close: async () => Buffer.concat(parts) }),
+    onOffer: (m, t, have) => (resumedFrom = have),
+    onFile: (m, i, r) => saved.push(r),
+    onError: (e) => { throw e; },
+  });
+  await rx.handle(ch2.out[0]);
+  assert.deepEqual(resumedFrom, [kept], 'the receiver answers with what it kept');
+
+  await sendFiles(ch2, [file], { chunkSize: 10_000, offsets: resumedFrom });
+  for (const msg of ch2.out.slice(1)) await rx.handle(msg);
+
+  assert.equal(saved.length, 1, 'the file completed on the second attempt');
+  assert.equal(sha(saved[0]), sha(bytes), 'resumed file is byte-identical');
+
+  // The resume must not re-send what was already there.
+  const resent = ch2.out.filter((m) => m instanceof ArrayBuffer).reduce((a, b) => a + b.byteLength, 0);
+  assert.ok(resent < bytes.length - kept + 20_000, `only the remainder was re-sent (${resent})`);
+}
+
+// 12. A resume whose offset disagrees with what was kept is refused, not
+//     silently written at the wrong place.
+{
+  const session = createSession();
+  const errors = [];
+  const rx = createReceiver({
+    session,
+    openSink: async () => ({ write() {}, close: async () => null }),
+    onError: (e) => errors.push(e),
+  });
+  await rx.handle(JSON.stringify({ t: 'offer', tid: 'x', files: [{ name: 'a', size: 100 }] }));
+  await rx.handle(JSON.stringify({ t: 'start', i: 0, from: 40 })); // we kept 0
+  assert.match(errors[0].message, /resumed at 40 but 0 bytes were kept/);
+}
+
+// 13. A different transfer id is a new transfer, not a resume.
+{
+  const session = createSession();
+  let sawHave = 'unset';
+  const rx = createReceiver({
+    session,
+    openSink: async () => ({ write() {}, close: async () => null }),
+    onOffer: (m, t, have) => (sawHave = have),
+  });
+  await rx.handle(JSON.stringify({ t: 'offer', tid: 'one', files: [{ name: 'a', size: 10 }] }));
+  assert.equal(sawHave, null, 'a first offer is not a resume');
+  await rx.handle(JSON.stringify({ t: 'offer', tid: 'two', files: [{ name: 'b', size: 10 }] }));
+  assert.equal(sawHave, null, 'an unrelated id starts fresh');
+}
+
+console.log('transfer: resume checks passed');

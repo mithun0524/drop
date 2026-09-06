@@ -68,6 +68,19 @@ front screen can carry one, so scanning works whether or not IP grouping does.
 Codes expire after ten minutes and an unknown one falls back to your own room
 rather than stranding you somewhere empty.
 
+## Resume
+
+A dropped connection does not cost the bytes already moved. The offer carries a
+transfer id; a receiver that recognises it answers with how much of each file it
+kept instead of asking to accept again, and the sender seeks past that. At ten
+gigabytes the difference is between slow and unusable.
+
+The receiver trusts its own byte count over the sender's claimed offset — it is
+the only side that knows what actually reached disk — and refuses a resume whose
+offset disagrees, rather than writing at the wrong place. Cancelling deliberately
+discards the partial; only a drop keeps it. Resume survives a lost connection,
+not a page reload.
+
 ## Size limits
 
 Sending has no limit: files are read in 64KB slices with backpressure, so the

@@ -28,6 +28,7 @@ import {
   diskSink,
   canStreamToDisk,
   memoryCeiling,
+  createSession,
   formatSize,
 } from './transfer.js';
 
@@ -61,6 +62,8 @@ const S = {
   notice: null, // a transient line about something that just changed
   incomingFrom: null, // a peer that is choosing files for us right now
   writables: null, // file handles opened at the accept tap, when streaming to disk
+  tid: null, // this transfer's id, so a retry resumes rather than restarts
+  resumable: false, // a dropped transfer that still has progress worth keeping
 };
 
 // Renders are coalesced into one animation frame. Transfer progress calls
@@ -334,8 +337,10 @@ net.addEventListener('resumed', (e) => {
 net.addEventListener('gone', (e) => {
   if (S.target?.id !== e.detail) return;
   if (S.screen === 'sending' || S.screen === 'receiving') {
-    rx?.abort();
-    set({ screen: 'vanished', stalled: false });
+    // Keep the partial: it is the progress a resume exists to save.
+    const keep = !!rx?.resumable() || S.screen === 'sending';
+    rx?.abort({ keep });
+    set({ screen: 'vanished', stalled: false, resumable: keep });
   } else if (S.screen === 'waiting' || S.screen === 'confirm') {
     set({ screen: 'radar', target: null });
   }
@@ -343,6 +348,9 @@ net.addEventListener('gone', (e) => {
 
 let rx = null; // active receiver
 let abort = null; // AbortController for an active send
+// Survives a dropped connection: it is what makes a resume possible rather
+// than starting a ten gigabyte transfer over.
+let session = createSession();
 
 net.addEventListener('channel', ({ detail: { id, ch } }) => {
   ch.addEventListener('message', (e) => onChannelMessage(id, e.data));
@@ -356,8 +364,24 @@ async function onChannelMessage(from, data) {
 
     if (m.t === 'offer') {
       const peer = net.peers.get(from) ?? { id: from, name: 'Someone', color: 'blue' };
-      rx = buildReceiver(net.channel(from));
+      let resumeFrom = null;
+      rx = buildReceiver((have) => (resumeFrom = have));
       await rx.handle(data);
+
+      // An offer we are already part-way through is the same transfer coming
+      // back. It was accepted once; asking again would be asking about a
+      // decision already made.
+      if (resumeFrom) {
+        net.channel(from)?.send(JSON.stringify({ t: 'resume', have: resumeFrom }));
+        return set({
+          screen: 'receiving',
+          target: peer,
+          manifest: m.files,
+          stalled: false,
+          startedAt: performance.now(),
+        });
+      }
+
       set({
         screen: 'incoming',
         target: peer,
@@ -371,6 +395,7 @@ async function onChannelMessage(from, data) {
       return;
     }
     if (m.t === 'accept') return startSending(from);
+    if (m.t === 'resume') return startSending(from, m.have);
     if (m.t === 'decline') return set({ screen: 'declined' });
     if (m.t === 'cancel') {
       rx?.abort();
@@ -380,9 +405,10 @@ async function onChannelMessage(from, data) {
   if (rx) await rx.handle(data);
 }
 
-function buildReceiver(ch) {
-  const results = [];
+function buildReceiver(onResume) {
   return createReceiver({
+    session,
+    onOffer: (manifest, total, have) => have && onResume?.(have),
     // Handles are opened at the accept tap, because the save picker is only
     // allowed from a user gesture. When we have one, bytes go straight to disk
     // and size stops mattering; otherwise the file is assembled in memory and
@@ -401,11 +427,9 @@ function buildReceiver(ch) {
         fileName: S.manifest?.[index]?.name ?? '',
       });
     },
-    onFile: (meta, i, blob) => {
-      if (blob) results.push([meta.name, blob]);
-    },
+
     onFailed: (meta, i) => set({ failed: [...S.failed, i] }),
-    onDone: () =>
+    onDone: (manifest, total, failed, results) =>
       set({ screen: 'saved', results, pct: 100, showQueue: false, stalled: false, writables: null }),
     onError: (err) => set({ screen: 'vanished', error: err.message }),
   });
@@ -435,28 +459,32 @@ async function pickTarget(peer) {
 
 const sameNetwork = (peer) => !peer?.net || !net.net || peer.net === net.net;
 
-async function offerFiles(peer, files) {
+async function offerFiles(peer, files, tid = null) {
   // The server tells us which network each peer arrived from. Different
   // networks cannot reach each other over the LAN, and no amount of waiting
   // changes that.
   if (!sameNetwork(peer)) return set({ target: peer, files, screen: 'offnet' });
-  set({ target: peer, files, screen: 'connecting', error: null });
+  // Re-offering with the same id is how the other side knows to answer with
+  // what it kept instead of starting again.
+  const id = tid ?? Math.random().toString(36).slice(2) + Date.now().toString(36);
+  set({ target: peer, files, tid: id, screen: 'connecting', error: null });
   try {
     const ch = await net.open(peer.id);
-    ch.send(JSON.stringify({ t: 'offer', files: describe(files) }));
+    ch.send(JSON.stringify({ t: 'offer', tid: id, files: describe(files) }));
     set({ screen: 'waiting' });
   } catch {
     set({ screen: 'blocked' });
   }
 }
 
-async function startSending(id) {
+async function startSending(id, offsets = []) {
   const ch = net.channel(id);
   abort = new AbortController();
-  set({ screen: 'sending', pct: 0, startedAt: performance.now(), bytes: 0, failed: [] });
+  set({ screen: 'sending', pct: 0, startedAt: performance.now(), bytes: 0, failed: [], stalled: false });
   try {
     await sendFiles(ch, S.files, {
       signal: abort.signal,
+      offsets,
       onFailed: (i) => set({ failed: [...S.failed, i] }),
       onProgress: ({ sent, total, index }) => {
         const secs = (performance.now() - S.startedAt) / 1000;
@@ -528,9 +556,10 @@ function decline() {
 function cancel() {
   if (S.target) net.hint(S.target.id, 'stopped');
   abort?.abort();
-  rx?.abort();
+  rx?.abort(); // a deliberate stop discards the partial; only a drop keeps it
+  session = createSession();
   net.channel(S.target?.id)?.send(JSON.stringify({ t: 'cancel' }));
-  set({ screen: 'radar', target: null, files: [] });
+  set({ screen: 'radar', target: null, files: [], tid: null, resumable: false });
 }
 
 // ---------------------------------------------------------------- file input
@@ -1351,15 +1380,33 @@ function noWifi() {
 }
 
 function vanished() {
+  // They rejoin with a new peer id, so match on the identity a person sees.
+  const back = S.peers.find((p) => p.name === S.target?.name && p.color === S.target?.color);
+  const done = Math.round(S.pct);
+  const leave = () => {
+    session = createSession();
+    set({ screen: 'radar', target: null, files: [], tid: null, resumable: false });
+  };
+  const canResume = S.resumable && back && S.files.length;
+
   return [
     el('div', { class: 'screen' }, [
       el('div', { class: 'center' }, [
         head(`${S.target?.name ?? 'They'}<br>left the network.`, 'sm'),
         el('p', { class: 'body' }, [
-          S.error ?? 'The transfer stopped. Incomplete files were discarded — nothing half-saved.',
+          S.error ??
+            (S.resumable
+              ? `Stopped at ${done}%. Nothing is lost — carrying on picks up from there.`
+              : 'The transfer stopped. Incomplete files were discarded — nothing half-saved.'),
         ]),
+        S.resumable && !back
+          ? el('p', { class: 'body sm', style: { color: 'var(--dim)' } }, [
+              'Waiting for them to come back. Keep this page open.',
+            ])
+          : null,
       ]),
-      blackBtn('Back to devices', () => set({ screen: 'radar', target: null, files: [] })),
+      canResume ? blackBtn(`Carry on from ${done}%`, () => offerFiles(back, S.files, S.tid)) : null,
+      canResume ? plainBtn('Give up', leave) : blackBtn('Back to devices', leave),
     ]),
   ];
 }
@@ -1539,6 +1586,7 @@ const renderKey = () =>
     S.entry,
     S.notice,
     S.incomingFrom?.id,
+    S.resumable,
     S.error,
     S.code,
     S.backTo,

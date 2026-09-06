@@ -1,15 +1,21 @@
 // File transfer protocol over an RTCDataChannel.
 //
 // Wire format, all on one ordered binary channel:
-//   JSON string  {t:'offer',   files:[{name,size,type}]}
-//   JSON string  {t:'accept'} | {t:'decline'}
-//   JSON string  {t:'start',   i}
-//   ArrayBuffer  ... raw chunks, in order, exactly file.size bytes total
+//   JSON string  {t:'offer',   tid, files:[{name,size,type}]}
+//   JSON string  {t:'accept'} | {t:'decline'} | {t:'resume', have:[bytes]}
+//   JSON string  {t:'start',   i, from}
+//   ArrayBuffer  ... raw chunks, in order, up to file.size bytes total
 //   JSON string  {t:'end',     i}   | {t:'skip', i, reason}
 //   JSON string  {t:'done',    failed:[i]}
 //
 // 'skip' is how a single file fails without taking the batch with it: the
 // receiver discards whatever arrived and the sender moves to the next file.
+//
+// 'resume' is how a dropped connection does not cost the bytes already moved.
+// The offer carries a transfer id; a receiver that recognises it answers with
+// how much of each file it kept instead of asking to accept again, and the
+// sender seeks past that. At ten gigabytes a lost connection would otherwise
+// mean starting over, which is the difference between slow and unusable.
 //
 // Nothing here touches the DOM or WebRTC directly — the channel is passed in,
 // so this file is testable with a fake channel. See transfer.test.js.
@@ -56,17 +62,25 @@ function drain(ch) {
 export async function sendFiles(
   ch,
   files,
-  { chunkSize = DEFAULT_CHUNK, onProgress, onFailed, signal } = {}
+  { chunkSize = DEFAULT_CHUNK, onProgress, onFailed, signal, offsets = [] } = {}
 ) {
-  let sent = 0;
   const total = totalBytes(files);
+  // Bytes the receiver already has count as sent, so progress resumes where it
+  // left off instead of restarting at zero.
+  let sent = files.reduce((a, f, i) => a + Math.min(offsets[i] ?? 0, f.size), 0);
   const failed = [];
 
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
-    ch.send(JSON.stringify({ t: 'start', i }));
+    const from = Math.min(offsets[i] ?? 0, file.size);
+    if (from >= file.size) {
+      ch.send(JSON.stringify({ t: 'start', i, from }));
+      ch.send(JSON.stringify({ t: 'end', i }));
+      continue;
+    }
+    ch.send(JSON.stringify({ t: 'start', i, from }));
 
-    let off = 0;
+    let off = from;
     try {
       while (off < file.size) {
         if (signal?.aborted) throw new Error('cancelled');
@@ -104,6 +118,7 @@ export async function sendFiles(
  * 20GB file stream to disk on desktop without a second code path.
  */
 export function createReceiver({
+  session,
   openSink,
   onOffer,
   onProgress,
@@ -112,65 +127,79 @@ export function createReceiver({
   onDone,
   onError,
 }) {
-  let manifest = null;
+  const st = session ?? createSession();
   let index = -1;
   let sink = null;
-  let fileGot = 0;
-  let got = 0;
-  let total = 0;
 
-  const fail = (msg) => {
-    onError?.(new Error(msg));
-  };
+  const fail = (msg) => onError?.(new Error(msg));
 
   async function handle(data) {
     if (typeof data === 'string') {
       const m = JSON.parse(data);
 
       if (m.t === 'offer') {
-        manifest = m.files;
-        total = totalBytes(manifest);
-        onOffer?.(manifest, total);
+        // A second offer carrying an id we are already part-way through is the
+        // same transfer coming back, not a new request. Answer with what we
+        // kept rather than asking the person to accept all over again.
+        const resuming = st.tid && st.tid === m.tid && st.manifest;
+        if (!resuming) {
+          st.tid = m.tid ?? null;
+          st.manifest = m.files;
+          st.got = m.files.map(() => 0);
+          st.sinks = [];
+          st.results = [];
+        }
+        onOffer?.(st.manifest, totalBytes(st.manifest), resuming ? [...st.got] : null);
         return;
       }
 
       if (m.t === 'start') {
         index = m.i;
-        fileGot = 0;
-        sink = await openSink(manifest[index], index);
+        // Trust our own count over the sender's claimed offset: we are the only
+        // side that knows what actually reached disk.
+        if ((m.from ?? 0) !== st.got[index]) {
+          return fail(
+            `${st.manifest[index].name} resumed at ${m.from} but ${st.got[index]} bytes were kept`
+          );
+        }
+        sink = st.sinks[index] ?? (st.sinks[index] = await openSink(st.manifest[index], index));
         return;
       }
 
       if (m.t === 'end') {
         // Trust the declared size over the sender's framing: a short file is a
         // corrupt file, and silently saving it is worse than failing loudly.
-        if (fileGot !== manifest[index].size) {
+        if (st.got[index] !== st.manifest[index].size) {
           await sink.close();
+          st.sinks[index] = null;
           return fail(
-            `${manifest[index].name} arrived incomplete (${fileGot} of ${manifest[index].size} bytes)`
+            `${st.manifest[index].name} arrived incomplete (${st.got[index]} of ${st.manifest[index].size} bytes)`
           );
         }
         const result = await sink.close();
+        st.sinks[index] = null;
         sink = null;
-        onFile?.(manifest[index], index, result);
+        if (result) st.results.push([st.manifest[index].name, result]);
+        onFile?.(st.manifest[index], index, result);
         return;
       }
 
       if (m.t === 'skip') {
         // The sender gave up on this one. Throw away the partial rather than
         // hand over a file that looks whole and isn't.
-        if (sink) {
-          await sink.close().catch(() => {});
-          sink = null;
+        if (st.sinks[m.i]) {
+          await st.sinks[m.i].close().catch(() => {});
+          st.sinks[m.i] = null;
         }
-        got += Math.max(0, manifest[m.i].size - fileGot);
-        fileGot = 0;
-        onFailed?.(manifest[m.i], m.i, m.reason);
+        sink = null;
+        st.got[m.i] = st.manifest[m.i].size; // accounted for, just not delivered
+        onFailed?.(st.manifest[m.i], m.i, m.reason);
         return;
       }
 
       if (m.t === 'done') {
-        onDone?.(manifest, total, m.failed ?? []);
+        st.tid = null; // finished, so a later offer is a genuinely new one
+        onDone?.(st.manifest, totalBytes(st.manifest), m.failed ?? [], st.results);
         return;
       }
       return;
@@ -179,24 +208,42 @@ export function createReceiver({
     // binary chunk
     if (!sink) return fail('chunk arrived before its file header');
     const buf = data instanceof ArrayBuffer ? data : await data.arrayBuffer();
-    fileGot += buf.byteLength;
-    got += buf.byteLength;
-    if (fileGot > manifest[index].size) return fail('sender overran the declared file size');
+    if (st.got[index] + buf.byteLength > st.manifest[index].size)
+      return fail('sender overran the declared file size');
     sink.write(new Uint8Array(buf));
-    onProgress?.({ index, fileGot, got, total });
+    st.got[index] += buf.byteLength;
+    onProgress?.({
+      index,
+      fileGot: st.got[index],
+      got: st.got.reduce((a, b) => a + b, 0),
+      total: totalBytes(st.manifest),
+    });
   }
 
   return {
     handle,
-    // Partial files are discarded, never saved. Losing a transfer is fine;
-    // leaving a half-file on disk that looks complete is not.
-    async abort() {
-      if (sink) {
-        await sink.close().catch(() => {});
-        sink = null;
+    session: st,
+    /** Bytes safely kept per file — what a resume offer is answered with. */
+    have: () => [...st.got],
+    /** True while a dropped transfer could still be picked up where it stopped. */
+    resumable: () => !!st.tid && st.got.some((n) => n > 0),
+    // Partial files are discarded, never saved, unless the transfer is still
+    // resumable — then the partial IS the progress worth keeping.
+    async abort({ keep = false } = {}) {
+      if (keep) return;
+      for (let i = 0; i < st.sinks.length; i++) {
+        if (st.sinks[i]) await st.sinks[i].close().catch(() => {});
+        st.sinks[i] = null;
       }
+      st.tid = null;
+      sink = null;
     },
   };
+}
+
+/** State that outlives a dropped connection, so a resume has something to resume. */
+export function createSession() {
+  return { tid: null, manifest: null, got: [], sinks: [], results: [] };
 }
 
 /** In-memory sink — the fallback when File System Access is unavailable (Safari, iOS). */
