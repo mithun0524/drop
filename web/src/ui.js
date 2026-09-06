@@ -19,6 +19,7 @@ import {
   identityKey,
 } from './identity.js';
 import { Net } from './net.js';
+import { isNative, nativeSink, shareNative, nativeLocation, folderFor } from './native.js';
 import qrcode from 'qrcode-generator';
 import {
   sendFiles,
@@ -67,6 +68,7 @@ const S = {
   incomingFrom: null, // a peer that is choosing files for us right now
   headroom: 0, // bytes the browser will let us store, measured at boot
   saved: false, // the received files have been handed to the OS
+  folder: null, // where this batch is being written, on native
   writables: null, // file handles opened at the accept tap, when streaming to disk
   tid: null, // this transfer's id, so a retry resumes rather than restarts
   resumable: false, // a dropped transfer that still has progress worth keeping
@@ -420,6 +422,15 @@ function buildReceiver(onResume) {
     // and size stops mattering; otherwise the file is assembled in memory and
     // the accept screen has already warned about the ceiling.
     openSink: async (meta, i) => {
+      if (isNative()) {
+        try {
+          // Straight to the device filesystem: no quota, no tab to be killed,
+          // and the file is already where the person can find it afterwards.
+          return await nativeSink(safeName(meta.name), S.folder);
+        } catch {
+          /* fall through — a saved file in the wrong place beats none */
+        }
+      }
       const w = S.writables?.[i];
       if (w) return diskSink(w); // a file the person chose: no limit at all
       if (canUseOpfs()) {
@@ -521,6 +532,7 @@ async function startSending(id, offsets = []) {
 
 async function accept() {
   trust(S.target); // accepting once is what makes auto-accept possible later
+  const folder = folderFor();
 
   // Must happen inside the gesture that accepted, before any await that would
   // end it — browsers only open a save picker from a user action.
@@ -546,7 +558,7 @@ async function accept() {
   }
 
   net.channel(S.target.id)?.send(JSON.stringify({ t: 'accept' }));
-  set({ screen: 'receiving', pct: 0, startedAt: performance.now(), bytes: 0, writables });
+  set({ screen: 'receiving', pct: 0, startedAt: performance.now(), bytes: 0, writables, folder });
 }
 
 /** The sender names these files, and the receiver has handed us a folder
@@ -1292,19 +1304,31 @@ function done() {
 }
 
 function saved() {
-  const total = S.manifest.reduce((a, f) => a + f.size, 0);
+  const total = totalOf(S.manifest);
   const secs = Math.max(0.1, (performance.now() - S.startedAt) / 1000);
   return [
     el('div', { class: 'screen' }, [
       eyebrow('From ' + S.target.name),
       el('div', { class: 'center' }, [
         el('div', { class: 'bigcount' }, S.manifest.length),
-        head(`file${S.manifest.length > 1 ? 's' : ''} ready<br>to save.`, 'sm'),
+        head(
+          isNative()
+            ? `file${S.manifest.length > 1 ? 's' : ''} saved<br>to this device.`
+            : `file${S.manifest.length > 1 ? 's' : ''} ready<br>to save.`,
+          'sm'
+        ),
         el(
           'div',
           { class: 'meta', style: { opacity: 0.8 } },
           `${formatSize(total)} · ${(total / 1e6 / secs).toFixed(0)} MB/s average`
         ),
+        isNative()
+          ? el(
+              'div',
+              { class: 'body sm', style: { marginTop: '14px', opacity: 0.85 } },
+              nativeLocation(S.folder)
+            )
+          : null,
         el(
           'div',
           { class: 'scroll', style: { marginTop: '18px', maxHeight: '160px' } },
@@ -1317,8 +1341,16 @@ function saved() {
         ),
       ]),
       blackBtn(
-        S.saved ? 'Saved' : S.results.length > 1 ? 'Save all' : 'Save',
-        S.saved ? () => set({ screen: 'radar', target: null, results: [], saved: false }) : saveAll
+        isNative()
+          ? 'Share'
+          : S.saved
+            ? 'Saved'
+            : S.results.length > 1
+              ? 'Save all'
+              : 'Save',
+        !isNative() && S.saved
+          ? () => set({ screen: 'radar', target: null, results: [], saved: false })
+          : saveAll
       ),
       plainBtn('Done', () => {
         pruneOpfs();
@@ -1330,6 +1362,16 @@ function saved() {
 }
 
 async function saveAll() {
+  if (isNative()) {
+    try {
+      await shareNative(S.manifest.map((f) => safeName(f.name)), S.folder);
+    } catch {
+      /* the sheet was dismissed, or sharing is unavailable — the files are
+         already on disk either way */
+    }
+    return set({ saved: true });
+  }
+
   const files = S.results.map(([name, blob]) =>
     blob instanceof File ? blob : new File([blob], name, { type: 'application/octet-stream' })
   );

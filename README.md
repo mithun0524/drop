@@ -50,9 +50,23 @@ npx cap add ios && npx cap add android
 npm run build && npx cap sync
 ```
 
-iOS needs `NSLocalNetworkUsageDescription` in `Info.plist` — without it the OS
-silently withholds LAN candidates and every connection fails. The app detects
-that case and shows the permission screen.
+```sh
+npm run sync      # build the web app and copy it into both native projects
+```
+
+Two `Info.plist` keys matter on iOS:
+
+- `NSLocalNetworkUsageDescription` — without it the OS silently withholds LAN
+  candidates and every connection fails. The app detects that and shows the
+  permission screen.
+- `UIFileSharingEnabled` and `LSSupportsOpeningDocumentsInPlace` — both `true`,
+  so received files appear under Files › On My iPhone › Drop rather than being
+  sealed inside the app.
+
+In the native build there is no browser quota and no tab to be killed: incoming
+bytes are appended straight to the device filesystem, so a transfer is limited
+only by free space. Chunks cross the bridge as base64 in four-megabyte batches —
+one append per 64KB chunk would cross it sixty times more often.
 
 ## How pairing works
 

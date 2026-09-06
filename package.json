@@ -6,17 +6,24 @@
     "dev": "vite web --host",
     "build": "vite build web",
     "preview": "vite preview web --host",
-    "test": "node web/src/transfer.test.js && node web/src/safename.test.js && node worker/networkkey.test.js && node web/src/clash.test.js && node web/src/screens.test.js",
+    "test": "node web/src/transfer.test.js && node web/src/safename.test.js && node web/src/native.test.js && node worker/networkkey.test.js && node web/src/clash.test.js && node web/src/screens.test.js",
     "worker:dev": "wrangler dev --config worker/wrangler.toml",
     "worker:deploy": "wrangler deploy --config worker/wrangler.toml",
-    "test:signal": "node worker/signal.test.js && node worker/pairing.test.js"
+    "test:signal": "node worker/signal.test.js && node worker/pairing.test.js",
+    "sync": "npm run build && npx cap sync"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.5.1",
+    "@capacitor/cli": "^8.5.1",
+    "@capacitor/ios": "^8.5.1",
     "jsdom": "^30.0.1",
     "vite": "^5.4.0",
     "wrangler": "^4.129.0"
   },
   "dependencies": {
+    "@capacitor/core": "^8.5.1",
+    "@capacitor/filesystem": "^8.1.3",
+    "@capacitor/share": "^8.0.1",
     "qrcode-generator": "^2.0.4"
   }
 }
