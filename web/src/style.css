@@ -1321,6 +1321,10 @@ button {
 .qrfull .btn.ghost {
   margin-top: clamp(16px, 4vh, 32px);
 }
+.live.arrived {
+  justify-content: center;
+  margin-top: clamp(14px, 3vh, 24px);
+}
 .qrfull .qr {
   max-width: min(86vw, 74vh, 460px);
   max-height: min(86vw, 74vh, 460px);

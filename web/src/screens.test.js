@@ -77,6 +77,7 @@ const STATES = {
   nowifi: {},
   vanished: { target: PEER },
   qr: { qrUrl: 'https://drop.test/?room=K4RM' },
+  'qr-arrived': { screen: 'qr', qrUrl: 'https://drop.test/?room=K4RM', peers: [PEER] },
   pairshow: { code: 'QRR4' },
   pairenter: { entry: 'K4' },
 };

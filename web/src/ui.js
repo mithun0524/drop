@@ -287,6 +287,10 @@ net.addEventListener('blocked', () => {
   if (S.screen === 'connecting' || S.screen === 'waiting') set({ screen: 'blocked' });
 });
 
+// Screens whose whole purpose is waiting for someone to turn up. Something
+// happening supersedes them; a screen you are mid-action on does not.
+const IDLE_SCREENS = new Set(['radar', 'qr', 'pairshow', 'pairenter']);
+
 let hintTimer = 0;
 
 net.addEventListener('hint', ({ detail: { from, kind } }) => {
@@ -295,10 +299,11 @@ net.addEventListener('hint', ({ detail: { from, kind } }) => {
     return set({ incomingFrom: null, screen: S.screen === 'awaited' ? 'radar' : S.screen });
   const peer = net.peers.get(from);
   if (!peer) return;
+  const idle = IDLE_SCREENS.has(S.screen);
   set({
     incomingFrom: peer,
-    screen: S.screen === 'radar' ? 'awaited' : S.screen,
-    target: S.screen === 'radar' ? peer : S.target,
+    screen: idle ? 'awaited' : S.screen,
+    target: idle ? peer : S.target,
   });
   // If they close the tab mid-pick there is no 'stopped', so it lapses.
   hintTimer = setTimeout(
@@ -1280,7 +1285,21 @@ function qrBig() {
       el('div', { class: 'qrbox big' }, [qrSvg(S.qrUrl, 'Scan to open this page')]),
       el('div', { class: 'qrcap' }, 'Point the other camera here'),
       el('div', { class: 'qrurl' }, S.qrUrl.replace(/^https?:\/\//, '')),
-      ghostBtn('Done', close),
+      // Otherwise there is no way to tell a scan worked without dismissing the
+      // code and looking.
+      S.peers.length
+        ? el('div', { class: 'live arrived' }, [
+            el('i'),
+            el(
+              'span',
+              {},
+              S.peers.length === 1
+                ? `${S.peers[0].name} is here`
+                : `${S.peers.length} devices are here`
+            ),
+          ])
+        : null,
+      ghostBtn(S.peers.length ? 'Done' : 'Cancel', close),
     ]),
   ];
 }
