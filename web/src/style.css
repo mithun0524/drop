@@ -1087,11 +1087,14 @@ button {
 .live {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 4px;
   min-width: 0;
   font: 600 clamp(13px, 3.8vw, 15px) / 1.2 var(--font);
   letter-spacing: -0.01em;
   color: #0f8a4d;
+}
+.live span {
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1103,6 +1106,7 @@ button {
   flex: none;
   width: 8px;
   height: 8px;
+  margin: 5px; /* room for the pulse ring, which paints outside the dot */
   border-radius: 50%;
   background: currentColor;
   animation: heartbeat 2.4s ease-in-out infinite;

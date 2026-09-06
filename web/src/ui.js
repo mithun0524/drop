@@ -198,7 +198,9 @@ const eyebrow = (t) => el('div', { class: 'eyebrow' }, t);
 const liveLine = (text) =>
   el('div', { class: 'live' + (S.status === 'reconnecting' ? ' off' : '') }, [
     el('i'),
-    S.status === 'reconnecting' ? 'Reconnecting' : text,
+    // The label clips, not the row: the dot's pulse ring is a box-shadow that
+    // grows past its box, and overflow on the row would square it off.
+    el('span', {}, S.status === 'reconnecting' ? 'Reconnecting' : text),
   ]);
 
 const head = (html, cls = '') => el('h2', { class: 'head ' + cls, html });
