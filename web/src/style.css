@@ -1291,10 +1291,19 @@ button {
   align-items: center;
   text-align: center;
 }
+/* The code and its label centre as one group; only the button sits at the
+   bottom. A .spring here would have eaten the free space and pinned the QR to
+   the top. */
 .qrfull .qrbox {
   cursor: zoom-out;
   flex: 0 1 auto;
   margin-top: auto;
+}
+.qrfull .qrurl {
+  margin-bottom: auto;
+}
+.qrfull .btn.ghost {
+  margin-top: clamp(16px, 4vh, 32px);
 }
 .qrfull .qr {
   max-width: min(86vw, 74vh, 460px);
@@ -1305,6 +1314,7 @@ button {
 }
 .qrfull .qrurl {
   margin-top: 8px;
+  word-break: break-all;
 }
 .qrfull .btn.ghost {
   max-width: 320px;

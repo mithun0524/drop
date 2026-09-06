@@ -1174,7 +1174,6 @@ function qrBig() {
       el('div', { class: 'qrbox big' }, [qrSvg(S.qrUrl, 'Scan to open this page')]),
       el('div', { class: 'qrcap' }, 'Point the other camera here'),
       el('div', { class: 'qrurl' }, S.qrUrl.replace(/^https?:\/\//, '')),
-      el('div', { class: 'spring' }),
       ghostBtn('Done', close),
     ]),
   ];
