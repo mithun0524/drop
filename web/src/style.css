@@ -13,9 +13,7 @@
   --line: #edf0f4;
   --line2: #dcdfe4;
   --bg: #ffffff;
-  /* Space Grotesk: squared-off and slightly mechanical, with digits that can
-     carry the 190px percentage that is this app's biggest moment. */
-  --font: 'Space Grotesk', 'Helvetica Neue', Arial, sans-serif;
+  --font: Inter, system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
   --pad: clamp(18px, 6.7vw, 26px); /* screen gutter, 26px at the drawn width */
   /* The drawing got its top spacing from a fake 52px status bar inside the
      phone frame. The real OS bar replaces the notch part, but the breathing

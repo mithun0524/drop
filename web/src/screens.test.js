@@ -163,8 +163,13 @@ console.log(`screens: ${checked} states rendered clean at 320/390/768px`);
   assert.ok(!/min-height:\s*0/.test(qrwrap), '.qrwrap must not permit collapse');
 
   // The typeface is set in one place so it can be changed in one place.
-  assert.ok(!/\bInter\b/.test(css), 'Inter must not survive anywhere in the styles');
   assert.ok(/--font:/.test(css), 'the family belongs in a single token');
+  // `font-family: inherit` is a legitimate reset (buttons default to the UA
+  // font). What must not spread is a concrete family named outside the token.
+  const families = (css.match(/font-family:\s*([^;]+)/g) ?? []).filter(
+    (d) => !/inherit/.test(d)
+  );
+  assert.deepEqual(families, ['font-family: var(--font)'], 'the family is named once, in the token');
   const hardcoded = css.match(/font(-family)?:[^;]*(Helvetica|Arial|system-ui)[^;]*/g) ?? [];
   assert.ok(hardcoded.length <= 1, 'only the --font token may name a concrete family');
 
