@@ -151,6 +151,17 @@ console.log(`screens: ${checked} states rendered clean at 320/390/768px`);
     assert.ok(/place-content:\s*center/.test(rule), `${sel} must use place-content, not place-items`);
   }
 
+  // A flex item that can shrink below its content does not clip — it spills,
+  // and later siblings draw through it. This shipped: the QR block collapsed
+  // and the heading printed on top of its caption.
+  const qrwrap = css.match(/\.qrwrap\s*\{[^}]*\}/)?.[0] ?? '';
+  assert.ok(qrwrap, 'expected the .qrwrap rule');
+  assert.ok(
+    /flex:\s*0\s+0\s+auto/.test(qrwrap),
+    '.qrwrap must not be allowed to shrink below its content'
+  );
+  assert.ok(!/min-height:\s*0/.test(qrwrap), '.qrwrap must not permit collapse');
+
   console.log('css: layout invariants hold');
 }
 
