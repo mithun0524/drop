@@ -111,6 +111,10 @@ button {
   overflow-y: auto; /* last-resort escape hatch; normally nothing scrolls */
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none; /* a gutter here would inset every full-bleed edge */
+}
+
+/* Added by render() only when the screen actually changed. */
+.enter {
   animation: screenIn 0.26s cubic-bezier(0.2, 0.7, 0.3, 1);
 }
 .screen.flush {

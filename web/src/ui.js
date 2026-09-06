@@ -47,9 +47,17 @@ const S = {
   backTo: 'radar', // where settings sub-screens return to
 };
 
+// Renders are coalesced into one animation frame. Transfer progress calls
+// set() per chunk — without this, a 1GB send rebuilds the DOM thousands of
+// times a second.
+let frame = 0;
 const set = (patch) => {
   Object.assign(S, patch);
-  render();
+  if (frame) return;
+  frame = requestAnimationFrame(() => {
+    frame = 0;
+    render();
+  });
 };
 
 if (S.me.fresh) S.screen = 'identity';
@@ -1092,7 +1100,16 @@ const SCREENS = {
 // Screens that take the peer's colour across the whole surface.
 const COLORED = new Set(['pick', 'connecting', 'waiting', 'declined', 'incoming', 'done', 'saved']);
 
+let lastScreen = null;
+
 function render() {
+  // The entry animation belongs to arriving at a screen, not to every state
+  // update on it. Replaying it on each render is what made a page look like it
+  // loaded twice: once on first paint, again the moment the socket connected
+  // and pushed the peer list.
+  const arrived = S.screen !== lastScreen;
+  lastScreen = S.screen;
+
   const fn = SCREENS[S.screen] ?? radar;
   const colored = COLORED.has(S.screen) && S.target;
   const key = colored ? S.target.color : null;
@@ -1101,7 +1118,9 @@ function render() {
   app.style.color = colored ? ON[key] : '#101014';
   app.classList.toggle('on-color', !!colored);
 
-  app.replaceChildren(...fn().filter(Boolean));
+  const nodes = fn().filter(Boolean);
+  if (arrived) for (const n of nodes) n.classList?.add('enter');
+  app.replaceChildren(...nodes);
 }
 
 // ---------------------------------------------------------------- boot

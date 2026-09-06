@@ -180,3 +180,51 @@ console.log(`screens: ${checked} states rendered clean at 320/390/768px`);
 
   console.log('initials: all checks passed');
 }
+
+// Arriving at a screen animates; updating it must not. Replaying the entry
+// animation on every state change made pages look like they loaded twice —
+// once on first paint, again when the socket connected and pushed peers.
+{
+  const { S: st, set: setState, render } = mod.__test;
+  const appEl = document.getElementById('app');
+
+  // jsdom has no rAF scheduling we can await, so drive it manually.
+  const frames = [];
+  Object.defineProperty(globalThis, 'requestAnimationFrame', {
+    value: (fn) => (frames.push(fn), frames.length),
+    configurable: true,
+    writable: true,
+  });
+  const flush = () => {
+    const queued = frames.splice(0);
+    for (const fn of queued) fn();
+  };
+
+  Object.assign(st, { screen: 'radar', peers: [], target: null, files: [] });
+  render();
+  const first = [...appEl.children].some((n) => n.classList.contains('enter'));
+  assert.ok(first, 'arriving at a screen should animate');
+
+  // Same screen, new data — this is the peer list landing after connect.
+  setState({ peers: [{ id: 'p1', name: 'Blue Jay', color: 'blue', kind: 'phone' }] });
+  flush();
+  const again = [...appEl.children].some((n) => n.classList.contains('enter'));
+  assert.ok(!again, 'updating the current screen must not replay the entry animation');
+
+  // A real navigation animates again.
+  setState({ screen: 'settings' });
+  flush();
+  assert.ok(
+    [...appEl.children].some((n) => n.classList.contains('enter')),
+    'changing screens should animate'
+  );
+
+  // Many updates in one frame must produce exactly one render.
+  setState({ screen: 'radar' });
+  flush();
+  for (let i = 0; i < 50; i++) setState({ pct: i });
+  assert.equal(frames.length, 1, '50 updates must coalesce into a single frame');
+  flush();
+
+  console.log('render: animates on arrival only, coalesces bursts');
+}
