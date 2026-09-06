@@ -350,7 +350,9 @@ function radar() {
         el(
           'div',
           { class: 'swatches waiting' },
-          KEYS.map((k) => el('div', { style: { background: COLORS[k] } }))
+          KEYS.map((k, i) =>
+            el('div', { style: { background: COLORS[k], animationDelay: i * 0.18 + 's' } })
+          )
         ),
       ]),
       footer(),

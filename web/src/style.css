@@ -530,10 +530,13 @@ button {
 }
 .swatches {
   display: flex;
+  align-items: flex-end;
   margin: 30px calc(var(--pad) * -1) 0;
   height: clamp(52px, 20vw, 80px);
-  overflow: hidden; /* the idle stagger must clip, not spill into the footer */
   flex: none;
+}
+.swatches div {
+  height: 100%;
 }
 .swatches div {
   flex: 1;
@@ -1135,36 +1138,29 @@ button {
   }
 }
 
-/* The five blocks are the slots a device drops into. Moving them individually
-   broke the strip into a ragged edge with the background showing through the
-   gaps, which read as a glitch. The blocks stay flush and a single highlight
-   travels across them instead — one clearly deliberate motion. */
-.swatches.waiting {
-  position: relative;
-}
-.swatches.waiting::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: linear-gradient(
-    100deg,
-    transparent 34%,
-    rgba(255, 255, 255, 0.42) 50%,
-    transparent 66%
-  );
-  transform: translateX(-100%);
-  animation: sweep 3s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+/* The five blocks are the slots a device drops into, and they idle rather than
+   sit still. They rise from a shared baseline at the bottom: the first attempt
+   translated them downward, which opened gaps along the top and read as a torn
+   edge rather than an equalizer. Scaling from the bottom keeps every bar
+   anchored, so only the height varies. */
+.swatches.waiting div {
+  transform-origin: bottom;
+  animation: swatchwait 2.6s ease-in-out infinite;
 }
 
-@keyframes sweep {
-  to {
-    transform: translateX(100%);
+@keyframes swatchwait {
+  0%,
+  100% {
+    transform: scaleY(0.45);
+  }
+  50% {
+    transform: scaleY(1);
   }
 }
 
+/* Motion off: full-height bars, no stagger frozen mid-cycle. */
 @media (prefers-reduced-motion: reduce) {
-  .swatches.waiting::after {
-    display: none;
+  .swatches.waiting div {
+    transform: none;
   }
 }
