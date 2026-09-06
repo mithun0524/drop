@@ -60,7 +60,12 @@ button {
   color: inherit;
 }
 
-/* ---- type scale: fluid, anchored to the drawn sizes ----------------- */
+/* ---- type scale: fluid on both axes ---------------------------------
+   Display sizes are a sum of a height term and a width term rather than a
+   min() of the two. min() lets whichever axis is tighter win outright, so a
+   tall narrow phone and a short wide one get the same headline even though
+   they have very different room for it. A sum shrinks smoothly as either
+   dimension gives out, and the clamp keeps it sane at both extremes. */
 .eyebrow {
   font: 500 clamp(10px, 2.9vw, 11px) / 1 var(--font);
   letter-spacing: 0.16em;
@@ -68,20 +73,18 @@ button {
   opacity: 0.72;
 }
 .head {
-  /* Width and height both constrain it: a 390x670 phone has the width for a
-     44px headline and nowhere near the height. */
-  font: 600 min(clamp(30px, 11.3vw, 52px), 7.4vh) / 0.98 var(--font);
+  font: 600 clamp(26px, 4vh + 4vw, 52px) / 0.98 var(--font);
   letter-spacing: -0.04em;
   margin: 0;
   text-wrap: balance;
   overflow-wrap: anywhere; /* a long device name must never overflow */
 }
 .head.sm {
-  font-size: min(clamp(26px, 9.2vw, 42px), 6.4vh);
+  font-size: clamp(23px, 3.2vh + 3.4vw, 42px);
   line-height: 1.02;
 }
 .body {
-  font: 400 min(clamp(14px, 4.1vw, 17px), 2.6vh) / 1.5 var(--font);
+  font: 400 clamp(13px, 1.3vh + 1.7vw, 17px) / 1.5 var(--font);
   margin: clamp(10px, 2.2vh, 18px) 0 0;
   max-width: 34ch;
   text-wrap: pretty;
@@ -90,11 +93,11 @@ button {
   font-size: clamp(13px, 3.6vw, 14px);
 }
 .meta {
-  font: 600 clamp(16px, 5.1vw, 21px) / 1.2 var(--font);
-  margin: 22px 0 0;
+  font: 600 clamp(15px, 1.6vh + 2.1vw, 21px) / 1.2 var(--font);
+  margin: clamp(14px, 2.4vh, 22px) 0 0;
 }
 .target-name {
-  font: 600 clamp(28px, 10.3vw, 44px) / 1 var(--font);
+  font: 600 clamp(24px, 3.4vh + 3.6vw, 44px) / 1 var(--font);
   letter-spacing: -0.04em;
   margin: 12px 0 0;
   overflow-wrap: anywhere;
@@ -277,7 +280,7 @@ button {
   overflow: hidden;
 }
 .tile .nm {
-  font: 600 clamp(17px, 5.9vw, 26px) / 1.05 var(--font);
+  font: 600 clamp(16px, 1.8vh + 2.6vw, 26px) / 1.05 var(--font);
   letter-spacing: -0.03em;
   width: 100%;
   overflow: hidden;
@@ -285,7 +288,7 @@ button {
   white-space: nowrap;
 }
 .tiles.one .tile .nm {
-  font-size: clamp(24px, 8.7vw, 38px);
+  font-size: clamp(22px, 2.6vh + 3.6vw, 38px);
   line-height: 1.02;
   letter-spacing: -0.035em;
 }
@@ -427,16 +430,19 @@ button {
   margin: 14px 0 0;
 }
 .pct b {
-  font: 600 clamp(96px, 48vw, 210px) / 0.78 var(--font);
+  /* Capped so the widest value still fits: "100" is three tabular digits
+     (~0.545em each after the negative tracking) plus the sign, about 1.9em
+     total, against a screen width less two gutters. */
+  font: 600 clamp(56px, 12vh + 20vw, 170px) / 0.78 var(--font);
   letter-spacing: -0.055em;
 }
 .pct i {
-  font: 600 clamp(34px, 16vw, 70px) / 1 var(--font);
+  font: 600 clamp(22px, 4vh + 6.6vw, 58px) / 1 var(--font);
   font-style: normal;
   letter-spacing: -0.03em;
 }
 .subline {
-  font: 600 clamp(17px, 6.9vw, 30px) / 1.1 var(--font);
+  font: 600 clamp(15px, 2.2vh + 3vw, 30px) / 1.1 var(--font);
   letter-spacing: -0.02em;
   margin: 14px 0 0;
   /* Was nowrap in the drawing; at 320px "84 MB/s · 12 s left" overflowed. */
@@ -637,7 +643,7 @@ button {
   font: 600 clamp(15px, 4.4vw, 17px) / 1 var(--font);
 }
 .bigcount {
-  font: 600 clamp(84px, 38vw, 165px) / 0.82 var(--font);
+  font: 600 clamp(60px, 13vh + 20vw, 165px) / 0.82 var(--font);
   letter-spacing: -0.06em;
 }
 .bar {

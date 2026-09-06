@@ -195,11 +195,31 @@ console.log(`screens: ${checked} states rendered clean at 320/390/768px`);
     'no screen may inline justify-content:flex-end'
   );
 
-  // Display type has to answer to height as well as width, or a short phone
-  // gets a headline sized for a wide one.
-  for (const sel of ['.head', '.body']) {
+  // Display type scales on both axes. A min() of the two lets whichever is
+  // tighter win outright, so a tall narrow phone and a short wide one get the
+  // same headline despite very different room for it.
+  for (const sel of ['.head', '.body', '.subline', '.bigcount']) {
     const rule = css.match(new RegExp('\\' + sel + '\\s*\\{[^}]*\\}'))?.[0] ?? '';
-    assert.ok(/vh/.test(rule), `${sel} must be constrained by viewport height too`);
+    assert.ok(/vh/.test(rule) && /vw/.test(rule), `${sel} must scale on both axes`);
+  }
+
+  // The transfer numeral is the widest thing in the app, and "100%" is its
+  // worst case: three tabular digits plus the sign must fit between the
+  // gutters on the narrowest phone we support.
+  const num = css.match(/\.pct b \{[^}]*font:[^;]*clamp\(([^)]*)\)/)?.[1] ?? '';
+  const sign = css.match(/\.pct i \{[^}]*font:[^;]*clamp\(([^)]*)\)/)?.[1] ?? '';
+  const parse = (spec) => {
+    const [lo, mid, hi] = spec.split(',').map((x) => x.trim());
+    const vh = Number(/([\d.]+)vh/.exec(mid)?.[1] ?? 0);
+    const vw = Number(/([\d.]+)vw/.exec(mid)?.[1] ?? 0);
+    return (w, h) =>
+      Math.min(Math.max((vh / 100) * h + (vw / 100) * w, parseFloat(lo)), parseFloat(hi));
+  };
+  const numAt = parse(num), signAt = parse(sign);
+  for (const [w, h] of [[320, 568], [360, 640], [375, 667], [390, 844], [430, 932]]) {
+    const pad = Math.min(Math.max(0.067 * w, 18), 26);
+    const widest = numAt(w, h) * 0.545 * 3 + signAt(w, h) * 0.85;
+    assert.ok(widest <= w - 2 * pad, `"100%" overflows at ${w}x${h}: ${widest.toFixed(0)}px`);
   }
 
   console.log('css: layout invariants hold');
