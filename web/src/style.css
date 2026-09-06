@@ -1191,6 +1191,14 @@ button {
   display: grid;
   place-items: center;
   width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: zoom-in;
+  transition: transform 0.12s;
+}
+.qrbox:active {
+  transform: scale(0.97);
 }
 .qr {
   height: 100%;
@@ -1273,4 +1281,31 @@ button {
   .tiles:not(.one):not(.many) .art > * {
     --dev: 0.9;
   }
+}
+
+
+/* Enlarged: a QR scans from further away and in worse light the bigger it is,
+   which is exactly the moment someone is holding a phone across a table. */
+.qrfull {
+  cursor: zoom-out;
+  align-items: center;
+  text-align: center;
+}
+.qrfull .qrbox {
+  cursor: zoom-out;
+  flex: 0 1 auto;
+  margin-top: auto;
+}
+.qrfull .qr {
+  max-width: min(86vw, 74vh, 460px);
+  max-height: min(86vw, 74vh, 460px);
+}
+.qrfull .qrcap {
+  margin-top: 18px;
+}
+.qrfull .qrurl {
+  margin-top: 8px;
+}
+.qrfull .btn.ghost {
+  max-width: 320px;
 }

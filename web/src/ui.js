@@ -46,6 +46,7 @@ const S = {
   showQueue: false, // transfer screen: big numeral vs per-file queue
   stalled: false,
   backTo: 'radar', // where settings sub-screens return to
+  qrUrl: null, // the link the enlarged QR is showing
 };
 
 // Renders are coalesced into one animation frame. Transfer progress calls
@@ -436,9 +437,15 @@ function radar() {
       el('div', { class: 'topbar' }, [liveLine('Listening on this network'), gearBtn()]),
       el('div', { class: 'screen to-edge' }, [
         el('div', { class: 'qrwrap' }, [
-          el('div', { class: 'qrbox' }, [
-            qrSvg(appUrl(), 'Scan to open this page on another device'),
-          ]),
+          el(
+            'button',
+            {
+              class: 'qrbox',
+              'aria-label': 'Enlarge the QR code',
+              onClick: () => set({ screen: 'qr', qrUrl: appUrl(), backTo: 'radar' }),
+            },
+            [qrSvg(appUrl(), 'Scan to open this page on another device')]
+          ),
           el('div', { class: 'qrcap' }, 'Point the other camera here'),
           navigator.share
             ? el(
@@ -1112,6 +1119,19 @@ function vanished() {
   ];
 }
 
+function qrBig() {
+  const close = () => set({ screen: S.backTo, qrUrl: null });
+  return [
+    el('div', { class: 'screen qrfull', onClick: close }, [
+      el('div', { class: 'qrbox big' }, [qrSvg(S.qrUrl, 'Scan to open this page')]),
+      el('div', { class: 'qrcap' }, 'Point the other camera here'),
+      el('div', { class: 'qrurl' }, S.qrUrl.replace(/^https?:\/\//, '')),
+      el('div', { class: 'spring' }),
+      ghostBtn('Done', close),
+    ]),
+  ];
+}
+
 function pairShow() {
   const c = COLORS[S.me.color];
   const code = (S.code ??= Math.random().toString(36).slice(2, 6).toUpperCase());
@@ -1120,7 +1140,15 @@ function pairShow() {
       eyebrow('Pair by hand'),
       head('Type this code<br>on the other device.', 'sm'),
       el('div', { class: 'qrwrap pair' }, [
-        qrSvg(appUrl(code), 'Scan to join this room'),
+        el(
+          'button',
+          {
+            class: 'qrbox',
+            'aria-label': 'Enlarge the QR code',
+            onClick: () => set({ screen: 'qr', qrUrl: appUrl(code), backTo: 'pairshow' }),
+          },
+          [qrSvg(appUrl(code), 'Scan to join this room')]
+        ),
       ]),
       el(
         'div',
@@ -1213,6 +1241,7 @@ const SCREENS = {
   ios: iosPermission,
   nowifi: noWifi,
   vanished,
+  qr: qrBig,
   pairshow: pairShow,
   pairenter: pairEnter,
 };

@@ -73,6 +73,7 @@ const STATES = {
   ios: {},
   nowifi: {},
   vanished: { target: PEER },
+  qr: { qrUrl: 'https://drop.test/?room=K4RM' },
   pairshow: {},
   pairenter: { entry: 'K4' },
 };
@@ -97,6 +98,7 @@ for (const [label, patch] of Object.entries(STATES)) {
   Object.assign(S, {
     screen, peers: [], target: null, files: [], manifest: null, results: [],
     failed: [], showQueue: false, stalled: false, status: 'online', pct: 0, speed: 0, index: 0,
+    qrUrl: 'https://drop.test/',
   }, patch, { screen });
 
   assert.ok(SCREENS[screen], `no screen registered for "${screen}"`);
