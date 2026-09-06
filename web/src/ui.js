@@ -600,10 +600,37 @@ function cancel() {
 
 const input = el('input', { type: 'file', multiple: true, style: { display: 'none' } });
 document.body.append(input);
+let appending = false;
+
 input.addEventListener('change', () => {
-  if (input.files.length) set({ files: [...input.files], screen: 'confirm' });
+  const picked = [...input.files];
+  if (picked.length) {
+    // Two pickers land here: the first choice, and adding to it later. The
+    // same file twice is a slip, not an instruction.
+    const merged = appending ? [...S.files, ...picked] : picked;
+    const seen = new Set();
+    const files = merged.filter((f) => {
+      const key = `${f.name}|${f.size}|${f.lastModified}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    set({ files, screen: 'confirm' });
+  }
+  appending = false;
   input.value = '';
 });
+
+const chooseFiles = ({ add = false } = {}) => {
+  appending = add;
+  input.click();
+};
+
+const dropFile = (i) => {
+  const files = S.files.filter((_, n) => n !== i);
+  // Removing the last one leaves nothing to confirm, so go back to picking.
+  set(files.length ? { files } : { files, screen: 'pick' });
+};
 
 // Desktop: the whole window is the drop target.
 document.addEventListener('dragover', (e) => {
@@ -851,7 +878,7 @@ function pick() {
         el('div', { class: 'hero-dev' }, [silhouette(S.target.kind)]),
         el('div', { class: 'kind' }, kindLabel(S.target.kind)),
       ]),
-      blackBtn('Choose files', () => input.click()),
+      blackBtn('Choose files', () => chooseFiles()),
       plainBtn('Cancel', () => {
         net.hint(S.target.id, 'stopped');
         set({ screen: 'radar', target: null });
@@ -1165,13 +1192,23 @@ function confirm_() {
         el(
           'div',
           { class: 'filelist' },
-          S.files.map((f) =>
+          S.files.map((f, i) =>
             el('div', { class: 'filerow' }, [
               el('span', {}, f.name),
-              el('span', {}, formatSize(f.size)),
+              el('span', { class: 'size' }, formatSize(f.size)),
+              el(
+                'button',
+                {
+                  class: 'drop-x',
+                  'aria-label': `Remove ${f.name}`,
+                  onClick: () => dropFile(i),
+                },
+                '\u00d7'
+              ),
             ])
           )
         ),
+        el('button', { class: 'linkline', onClick: () => chooseFiles({ add: true }) }, 'Add more files'),
       ]),
       blackBtn('Send', () => offerFiles(S.target, S.files)),
       plainBtn('Cancel', () => {

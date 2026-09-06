@@ -478,9 +478,28 @@ button {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.filerow span:last-child {
+.filerow .size {
   flex: none;
   opacity: 0.6;
+}
+/* Removing one file must not be as easy to hit as sending them all. */
+.drop-x {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  margin: -6px -6px -6px 2px;
+  border: none;
+  background: none;
+  color: currentColor;
+  opacity: 0.5;
+  font: 400 21px/1 var(--font);
+  cursor: pointer;
+  border-radius: 50%;
+  transition: opacity 0.15s;
+}
+.drop-x:hover,
+.drop-x:focus-visible {
+  opacity: 1;
 }
 .scroll {
   flex: 1;
