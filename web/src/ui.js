@@ -1100,9 +1100,45 @@ const SCREENS = {
 // Screens that take the peer's colour across the whole surface.
 const COLORED = new Set(['pick', 'connecting', 'waiting', 'declined', 'incoming', 'done', 'saved']);
 
+/* Everything the screens actually read. Rebuilding the DOM restarts every CSS
+   animation in it, so a render that would change nothing must not happen — the
+   idle bars and the heartbeat have to survive the socket connecting. */
+const renderKey = () =>
+  JSON.stringify([
+    S.screen,
+    S.status,
+    S.me.name,
+    S.me.color,
+    S.me.kind,
+    S.peers.map((p) => `${p.id}${p.name}${p.color}${p.kind}`),
+    S.target?.id,
+    S.target?.name,
+    S.files.length,
+    S.manifest?.length,
+    S.results.length,
+    Math.round(S.pct),
+    Math.round(S.speed),
+    S.index,
+    S.fileName,
+    S.hold,
+    S.failed.length,
+    S.showQueue,
+    S.stalled,
+    S.entry,
+    S.error,
+    S.code,
+    S.backTo,
+    S.settings.autoAccept,
+  ]);
+
 let lastScreen = null;
+let lastKey = null;
 
 function render() {
+  const sig = renderKey();
+  if (sig === lastKey) return;
+  lastKey = sig;
+
   // The entry animation belongs to arriving at a screen, not to every state
   // update on it. Replaying it on each render is what made a page look like it
   // loaded twice: once on first paint, again the moment the socket connected
@@ -1129,11 +1165,14 @@ async function boot() {
   render();
   if (!navigator.onLine) return set({ screen: 'nowifi' });
 
+  // Connect straight away. The permission probe can take its full 2.5s timeout
+  // and the two are independent, so making discovery wait on it just delays
+  // the peer list by seconds for everyone who granted permission already.
+  net.connect();
+
   // No LAN candidates at all on iOS means Local Network access was refused.
   const local = await Net.probeLocalNetwork();
-  if (!local && /iPhone|iPad/.test(navigator.userAgent)) return set({ screen: 'ios' });
-
-  net.connect();
+  if (!local && /iPhone|iPad/.test(navigator.userAgent)) set({ screen: 'ios' });
 }
 
 window.addEventListener('offline', () => set({ screen: 'nowifi' }));

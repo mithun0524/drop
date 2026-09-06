@@ -228,3 +228,37 @@ console.log(`screens: ${checked} states rendered clean at 320/390/768px`);
 
   console.log('render: animates on arrival only, coalesces bursts');
 }
+
+// Rebuilding the DOM restarts every CSS animation inside it. The socket
+// connecting a couple of seconds after load used to do exactly that, which
+// cut the idle bars off mid-cycle and started them again.
+{
+  const { S: st, set: setState, render } = mod.__test;
+  const appEl = document.getElementById('app');
+  const frames = [];
+  Object.defineProperty(globalThis, 'requestAnimationFrame', {
+    value: (fn) => (frames.push(fn), frames.length),
+    configurable: true, writable: true,
+  });
+  const flush = () => { for (const fn of frames.splice(0)) fn(); };
+
+  Object.assign(st, { screen: 'settings', peers: [], target: null });
+  render();
+  Object.assign(st, { screen: 'radar' });
+  render();
+  const before = appEl.firstElementChild;
+
+  // What actually happens on connect: status re-asserted, empty peer list sent.
+  setState({ status: 'online' });
+  flush();
+  setState({ peers: [] });
+  flush();
+  assert.equal(appEl.firstElementChild, before, 'a no-op update must not rebuild the DOM');
+
+  // A real change still renders.
+  setState({ peers: [{ id: 'p1', name: 'Blue Jay', color: 'blue', kind: 'phone' }] });
+  flush();
+  assert.notEqual(appEl.firstElementChild, before, 'a real change must render');
+
+  console.log('render: identical state does not rebuild the DOM');
+}
