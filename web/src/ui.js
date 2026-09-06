@@ -17,6 +17,7 @@ import {
   resetIdentity,
 } from './identity.js';
 import { Net } from './net.js';
+import qrcode from 'qrcode-generator';
 import { sendFiles, createReceiver, describe, memorySink, formatSize } from './transfer.js';
 
 const app = document.getElementById('app');
@@ -89,6 +90,43 @@ const silhouette = (kind) =>
     : el('div', { class: kind === 'tablet' ? 'dev-tablet' : 'dev-phone' });
 
 const kindLabel = (k) => (k === 'phone' ? 'Phone' : k === 'laptop' ? 'Laptop' : 'Tablet');
+
+/**
+ * A QR as one SVG path. The screen's whole job is getting another device onto
+ * this page, and typing the URL on a phone is the thing people give up on.
+ */
+function qrSvg(text, label) {
+  const qr = qrcode(0, 'M');
+  qr.addData(text);
+  qr.make();
+  const n = qr.getModuleCount();
+  const quiet = 2; // the quiet zone scanners need to find the code
+  const size = n + quiet * 2;
+
+  let d = '';
+  for (let r = 0; r < n; r++)
+    for (let c = 0; c < n; c++)
+      if (qr.isDark(r, c)) d += `M${c + quiet} ${r + quiet}h1v1h-1z`;
+
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', `0 0 ${size} ${size}`);
+  svg.setAttribute('class', 'qr');
+  svg.setAttribute('role', 'img');
+  svg.setAttribute('aria-label', label);
+  svg.setAttribute('shape-rendering', 'crispEdges');
+  const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  bg.setAttribute('width', size);
+  bg.setAttribute('height', size);
+  bg.setAttribute('fill', '#fff');
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  path.setAttribute('d', d);
+  path.setAttribute('fill', '#101014');
+  svg.append(bg, path);
+  return svg;
+}
+
+const appUrl = (code) =>
+  location.origin + location.pathname + (code ? '?room=' + encodeURIComponent(code) : '');
 
 /** "Red Kite" -> "RK". Single-word names fall back to their first two letters. */
 const initials = (name = '') => {
@@ -338,6 +376,24 @@ function radar() {
         gearBtn(),
       ]),
       el('div', { class: 'screen to-edge', style: { justifyContent: 'flex-end' } }, [
+        el('div', { class: 'qrwrap' }, [
+          qrSvg(appUrl(), 'Scan to open this page on another device'),
+          el('div', { class: 'qrcap' }, 'Point the other camera here'),
+          navigator.share
+            ? el(
+                'button',
+                {
+                  class: 'linkline',
+                  style: { alignSelf: 'center', paddingTop: '10px' },
+                  onClick: () =>
+                    navigator
+                      .share({ title: 'Drop', url: appUrl() })
+                      .catch(() => {}),
+                },
+                'or send the link'
+              )
+            : el('div', { class: 'qrurl' }, location.host),
+        ]),
         head('Nobody else<br>is here yet.'),
         el('p', { class: 'body', style: { color: 'var(--dim)' } }, [
           'Open this page on the other device. It takes over one of these blocks the moment it appears.',
@@ -1002,6 +1058,9 @@ function pairShow() {
     el('div', { class: 'screen' }, [
       eyebrow('Pair by hand'),
       head('Type this code<br>on the other device.', 'sm'),
+      el('div', { class: 'qrwrap pair' }, [
+        qrSvg(appUrl(code), 'Scan to join this room'),
+      ]),
       el(
         'div',
         { class: 'code' },
@@ -1165,10 +1224,15 @@ async function boot() {
   render();
   if (!navigator.onLine) return set({ screen: 'nowifi' });
 
+  // A QR carries ?room=CODE, so scanning one joins that room rather than
+  // landing on a page that still needs the code typed in.
+  const room = new URLSearchParams(location.search).get('room');
+  if (room) S.code = room.toUpperCase();
+
   // Connect straight away. The permission probe can take its full 2.5s timeout
   // and the two are independent, so making discovery wait on it just delays
   // the peer list by seconds for everyone who granted permission already.
-  net.connect();
+  net.connect(room ? room.toUpperCase() : null);
 
   // No LAN candidates at all on iOS means Local Network access was refused.
   const local = await Net.probeLocalNetwork();

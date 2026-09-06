@@ -82,7 +82,7 @@ const STATES = {
 const patched = src
   .replace(/^boot\(\);$/m, '')
   .replace(/^window\.addEventListener\('offline'.*$/m, '')
-  + '\nexport const __test = { S, set, render, SCREENS };\n';
+  + '\nexport const __test = { S, set, render, SCREENS, appUrl, qrSvg };\n';
 
 // Must live beside ui.js so its relative imports still resolve.
 const probe = new URL('./__probe.gen.js', import.meta.url);
@@ -261,4 +261,34 @@ console.log(`screens: ${checked} states rendered clean at 320/390/768px`);
   assert.notEqual(appEl.firstElementChild, before, 'a real change must render');
 
   console.log('render: identical state does not rebuild the DOM');
+}
+
+// The pairing QR is only useful if scanning it actually joins the room, so the
+// link it encodes and the parsing on the other end have to agree.
+{
+  const { appUrl, qrSvg } = mod.__test;
+
+  assert.equal(appUrl(), 'https://drop.test/', 'plain link is just the page');
+  assert.equal(appUrl('K4RM'), 'https://drop.test/?room=K4RM');
+
+  // What boot() does with a scanned link.
+  const roomFrom = (url) => new URLSearchParams(new URL(url).search).get('room')?.toUpperCase();
+  assert.equal(roomFrom(appUrl('K4RM')), 'K4RM', 'the code survives the round trip');
+  assert.equal(roomFrom(appUrl()), undefined, 'a plain link joins no room');
+  assert.equal(roomFrom('https://drop.test/?room=k4rm'), 'K4RM', 'codes are case-insensitive');
+
+  // The QR renders real modules, not an empty path.
+  const svg = qrSvg(appUrl('K4RM'), 'test');
+  const d = svg.querySelector('path').getAttribute('d');
+  assert.ok(d.length > 200, 'QR path should contain many modules');
+  const box = svg.getAttribute('viewBox').split(' ').map(Number);
+  assert.ok(box[2] > 8 && box[2] === box[3], 'QR must be square with a quiet zone');
+  // A longer payload needs a bigger symbol — proves the encoder is really running.
+  const big = qrSvg('x'.repeat(300), 'test');
+  assert.ok(
+    Number(big.getAttribute('viewBox').split(' ')[2]) > box[2],
+    'more data must produce a larger symbol'
+  );
+
+  console.log('qr: encodes the join link and parses back');
 }
