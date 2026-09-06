@@ -8,8 +8,41 @@
 
 const ROOM_SALT = 'drop-v1';
 
+/**
+ * Reduce a client address to the thing its neighbours share.
+ *
+ * IPv4 is behind NAT, so everyone on the LAN presents the same address and it
+ * can be used whole. IPv6 has no NAT: every device gets its own global address
+ * and only the /64 prefix — the subnet the network is delegated — is common to
+ * the LAN. Hashing a full IPv6 address puts every device in a room of one.
+ */
+export function networkKey(ip) {
+  if (!ip) return 'unknown';
+  const addr = ip.trim().toLowerCase().split('%')[0]; // drop any zone id
+
+  if (!addr.includes(':')) return addr; // IPv4
+
+  // IPv4-mapped IPv6 (::ffff:1.2.3.4) is really IPv4 and is still NATed.
+  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(addr);
+  if (mapped) return mapped[1];
+
+  // Expand "::" so the first four hextets can be taken positionally.
+  const [head, tail] = addr.split('::');
+  const h = head ? head.split(':').filter(Boolean) : [];
+  const t = tail !== undefined ? tail.split(':').filter(Boolean) : [];
+  const full =
+    tail === undefined ? h : [...h, ...Array(Math.max(0, 8 - h.length - t.length)).fill('0'), ...t];
+
+  return (
+    full
+      .slice(0, 4)
+      .map((x) => (parseInt(x, 16) || 0).toString(16))
+      .join(':') + '::/64'
+  );
+}
+
 async function roomFromIp(ip) {
-  const bytes = new TextEncoder().encode(ROOM_SALT + '|' + ip);
+  const bytes = new TextEncoder().encode(ROOM_SALT + '|' + networkKey(ip));
   const digest = await crypto.subtle.digest('SHA-256', bytes);
   return [...new Uint8Array(digest).slice(0, 12)]
     .map((b) => b.toString(16).padStart(2, '0'))

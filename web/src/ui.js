@@ -246,6 +246,7 @@ function radar() {
         el('p', { class: 'body', style: { color: 'var(--dim)' } }, [
           'Open this page on the other device. It takes over one of these blocks the moment it appears.',
         ]),
+        plainBtn('Not showing up? Pair by hand', () => set({ screen: 'pairshow' })),
         el(
           'div',
           { class: 'swatches' },
@@ -374,11 +375,7 @@ function identity() {
             },
           }),
           el('div', {}, [
-            el(
-              'div',
-              { style: { font: '600 24px/1.05 Inter, sans-serif', letterSpacing: '-.03em' } },
-              S.me.name
-            ),
+            el('div', { class: 'me-name' }, S.me.name),
             el('div', { class: 'kind', style: { marginTop: '8px' } }, 'How others see you'),
           ]),
         ]
@@ -398,17 +395,7 @@ function pick() {
   return [
     el('div', { class: 'screen' }, [
       eyebrow('Send to'),
-      el(
-        'div',
-        {
-          style: {
-            font: '600 40px/1 Inter, sans-serif',
-            letterSpacing: '-.04em',
-            margin: '12px 0 0',
-          },
-        },
-        S.target.name
-      ),
+      el('div', { class: 'target-name' }, S.target.name),
       el('div', { class: 'center' }, [
         el('p', { class: 'body' }, [
           "Your device's own picker opens next — Drop never browses your storage itself.",
@@ -443,7 +430,7 @@ function waiting() {
         head(`${S.target.name}<br>has to say yes.`),
         el(
           'div',
-          { style: { font: '600 19px/1 Inter, sans-serif', margin: '22px 0 0' } },
+          { class: 'meta' },
           `${S.files.length} file${S.files.length > 1 ? 's' : ''} · ${formatSize(total)}`
         ),
       ]),
@@ -492,11 +479,7 @@ function incoming() {
           `${S.target.name}<br>wants to send<br>you ${n} file${n > 1 ? 's' : ''}.`,
           n > 1 ? '' : 'sm'
         ),
-        el(
-          'div',
-          { style: { font: '600 22px/1 Inter, sans-serif', margin: '26px 0 0' } },
-          formatSize(total)
-        ),
+        el('div', { class: 'meta' }, formatSize(total)),
       ]),
       el(
         'button',
@@ -558,7 +541,7 @@ function transfer() {
                 border: '1.5px solid currentColor',
                 borderRadius: '14px',
                 padding: '19px',
-                font: '600 16px/1 Inter, sans-serif',
+                font: '600 clamp(14px, 4.1vw, 16px)/1 Inter, sans-serif',
                 textAlign: 'center',
                 opacity: 0.85,
               },
@@ -624,7 +607,7 @@ function saved() {
         head(`file${S.manifest.length > 1 ? 's' : ''} ready<br>to save.`, 'sm'),
         el(
           'div',
-          { style: { font: '600 17px/1 Inter, sans-serif', margin: '22px 0 0', opacity: 0.8 } },
+          { class: 'meta', style: { opacity: 0.8 } },
           `${formatSize(total)} · ${(total / 1e6 / secs).toFixed(0)} MB/s average`
         ),
         el(
@@ -686,7 +669,7 @@ function iosPermission() {
           ['2', 'Scroll down and tap Drop'],
           ['3', 'Turn on Local Network'],
         ].map(([n, t]) => el('div', {}, [el('i', {}, n), el('div', {}, t)]))),
-        el('p', { class: 'body', style: { fontSize: '14px', opacity: 0.75 } }, [
+        el('p', { class: 'body sm', style: { opacity: 0.75 } }, [
           'Asked once. Drop can only see device names, nothing else.',
         ]),
       ]),
@@ -744,7 +727,7 @@ function pairShow() {
           .split('')
           .map((v) => el('div', { style: { background: c, color: ON[S.me.color] } }, v))
       ),
-      el('p', { class: 'body', style: { color: 'var(--dim)', fontSize: '14px' } }, [
+      el('p', { class: 'body sm', style: { color: 'var(--dim)' } }, [
         'Use this when the two devices are on the same Wi-Fi but can’t see each other automatically.',
       ]),
       el('div', { class: 'spring' }),
