@@ -1171,7 +1171,9 @@ button {
   padding: 8px 0 clamp(16px, 4vh, 32px);
 }
 .qr {
-  width: min(52vw, 30vh, 220px);
+  /* Sized against height as well as width, so it shrinks into a short
+     viewport rather than needing to be hidden from it. */
+  width: min(48vw, 26vh, 200px);
   height: auto;
   flex: none;
   border-radius: 10px;
@@ -1201,7 +1203,9 @@ button {
 }
 
 /* A short viewport gives the QR back to the text. */
-@media (max-height: 700px) {
+/* Only when there is genuinely no room. Above this the QR shrinks to fit —
+   hiding it on a screen with an obvious empty middle was an overcorrection. */
+@media (max-height: 600px) {
   .qrwrap {
     display: none;
   }
