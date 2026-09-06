@@ -791,7 +791,18 @@ function awaited() {
     el('div', { class: 'screen' }, [
       eyebrow('Incoming'),
       el('div', { class: 'center' }, [
-        el('div', { class: 'pulse' }),
+        // Not decoration: these are the rows the incoming list will be made of,
+        // so the wait previews the shape of what is coming.
+        el(
+          'div',
+          { class: 'picking' },
+          [72, 54, 86, 63].map((w) =>
+            el('div', { class: 'prow' }, [
+              el('i'),
+              el('span', { style: { width: w + '%' } }),
+            ])
+          )
+        ),
         head(`${S.target.name} is<br>choosing files<br>for you.`, 'sm'),
         el('p', { class: 'body' }, [
           'Nothing to do yet. You will get to accept or decline once they have picked.',

@@ -160,13 +160,11 @@ button {
 @keyframes ping {
   0% {
     transform: scale(1);
-    opacity: 0.55;
+    opacity: 0.6;
   }
-  70% {
-    transform: scale(2.6);
-    opacity: 0;
-  }
+  80%,
   100% {
+    transform: scale(3.4);
     opacity: 0;
   }
 }
@@ -536,13 +534,27 @@ button {
 .swatches div {
   flex: 1;
 }
+/* A solid core with rings leaving it. The square used to scale and fade on its
+   own, so at any given moment it was just a washed-out block — it read as a
+   rendering fault rather than as waiting. */
 .pulse {
-  width: clamp(40px, 14vw, 56px);
+  position: relative;
+  width: clamp(16px, 4.4vw, 20px);
   aspect-ratio: 1;
   background: currentColor;
-  animation: ping 1.8s ease-out infinite;
-  margin-bottom: 30px;
+  margin-bottom: clamp(22px, 4vh, 34px);
   flex: none;
+}
+.pulse::before,
+.pulse::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2px solid currentColor;
+  animation: ping 2.2s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
+}
+.pulse::after {
+  animation-delay: 1.1s;
 }
 .colorpicks {
   display: flex;
@@ -1351,5 +1363,71 @@ button {
   .tile.waiting-on {
     animation: none;
     filter: brightness(1.1);
+  }
+}
+
+
+/* ---- waiting on someone's file picker -------------------------------
+   Rows in the shape of the list that is coming, with one highlight passing
+   across them. A single sweep across the group reads as one thing loading;
+   animating each row separately reads as four broken things. */
+.picking {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(8px, 1.6vh, 13px);
+  margin-bottom: clamp(20px, 4vh, 36px);
+  flex: none;
+}
+.prow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.prow i {
+  flex: none;
+  width: clamp(20px, 4.6vw, 26px);
+  aspect-ratio: 4 / 5;
+  border-radius: 4px;
+  background: currentColor;
+  opacity: 0.3;
+}
+.prow span {
+  height: clamp(10px, 1.5vh, 13px);
+  border-radius: 3px;
+  background: currentColor;
+  opacity: 0.22;
+}
+.picking::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 32%,
+    rgba(255, 255, 255, 0.38) 50%,
+    transparent 68%
+  );
+  transform: translateX(-100%);
+  animation: sweep 1.9s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+@keyframes sweep {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .picking::after {
+    display: none;
+  }
+  .pulse::before,
+  .pulse::after {
+    animation: none;
+    opacity: 0.35;
+    transform: scale(2.2);
   }
 }
