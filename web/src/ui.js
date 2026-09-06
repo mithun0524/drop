@@ -845,10 +845,14 @@ function pick() {
     el('div', { class: 'screen' }, [
       eyebrow('Send to'),
       el('div', { class: 'target-name' }, S.target.name),
-      el('div', { class: 'center' }, [
-        el('p', { class: 'body' }, [
-          "Your device's own picker opens next — Drop never browses your storage itself.",
-        ]),
+      // The card you just tapped, larger: same colour, same silhouette, so the
+      // screen reads as a continuation of the tap rather than a new place.
+      el('div', { class: 'hero' }, [
+        el('div', { class: 'hero-dev' }, [silhouette(S.target.kind)]),
+        el('div', { class: 'kind' }, kindLabel(S.target.kind)),
+      ]),
+      el('p', { class: 'body sm', style: { opacity: 0.85, alignSelf: 'center', textAlign: 'center' } }, [
+        "Your device's own picker opens next. Drop never browses your storage itself.",
       ]),
       blackBtn('Choose files', () => input.click()),
       plainBtn('Cancel', () => {

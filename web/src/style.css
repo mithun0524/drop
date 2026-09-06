@@ -1459,3 +1459,47 @@ button {
 .warn.ok {
   opacity: 0.85;
 }
+
+
+/* The device you are about to send to, drawn at the size the moment deserves.
+   It is the same silhouette as the tile that was tapped, so the screen reads
+   as that card opening rather than as somewhere new. */
+.hero {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(14px, 3vh, 24px);
+  padding: clamp(12px, 3vh, 28px) 0;
+}
+.hero-dev {
+  display: grid;
+  place-content: center;
+  min-height: 0;
+}
+.hero-dev > * {
+  --dev: 1.9;
+}
+.hero .kind {
+  font: 500 clamp(9.5px, 2.7vw, 11px) / 1 var(--font);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+@media (max-height: 760px) {
+  .hero-dev > * {
+    --dev: 1.5;
+  }
+}
+@media (max-height: 640px) {
+  .hero-dev > * {
+    --dev: 1.15;
+  }
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  .hero-dev > * {
+    --dev: 0.8;
+  }
+}
