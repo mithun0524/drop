@@ -304,13 +304,19 @@ function radar() {
 
   if (count === 0) {
     return [
-      el('div', { class: 'topbar' }, [eyebrow('Nearby'), gearBtn()]),
-      el('div', { class: 'screen', style: { justifyContent: 'flex-end', paddingTop: 0 } }, [
+      // No label up here: with nothing on screen, a lone "NEARBY" just orphans
+      // itself above 500px of white. The gear is the only chrome that earns it.
+      el('div', { class: 'topbar solo' }, [gearBtn()]),
+      el('div', { class: 'screen to-edge', style: { justifyContent: 'flex-end' } }, [
         head('Nobody else<br>is here yet.'),
         el('p', { class: 'body', style: { color: 'var(--dim)' } }, [
           'Open this page on the other device. It takes over one of these blocks the moment it appears.',
         ]),
-        plainBtn('Not showing up? Pair by hand', () => set({ screen: 'pairshow' })),
+        el(
+          'button',
+          { class: 'linkline', onClick: () => set({ screen: 'pairshow', backTo: 'radar' }) },
+          'Not showing up? Pair by hand'
+        ),
         el(
           'div',
           { class: 'swatches' },
@@ -721,10 +727,10 @@ function settings() {
           onClick: () => set({ screen: 'identity', backTo: 'settings' }),
         },
         [
-          el('div', { class: 'me-chip' }),
+          el('div', { class: 'art' }, [silhouette(S.me.kind)]),
           el('div', { style: { minWidth: 0, textAlign: 'left' } }, [
             el('div', { class: 'me-name' }, S.me.name),
-            el('div', { class: 'kind', style: { marginTop: '8px' } }, 'Tap to change colour or name'),
+            el('div', { class: 'me-sub' }, 'Tap to change colour or name'),
           ]),
         ]
       ),

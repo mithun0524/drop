@@ -110,6 +110,7 @@ button {
   padding: var(--top) var(--pad) calc(var(--pad) + var(--safe-b));
   overflow-y: auto; /* last-resort escape hatch; normally nothing scrolls */
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* a gutter here would inset every full-bleed edge */
   animation: screenIn 0.26s cubic-bezier(0.2, 0.7, 0.3, 1);
 }
 .screen.flush {
@@ -340,13 +341,11 @@ button {
 /* ---- footer: who you are ------------------------------------------- */
 .foot {
   flex: none;
-  min-height: 84px;
   display: flex;
   align-items: center;
   gap: 13px;
-  padding: 0 var(--pad);
-  padding-bottom: var(--safe-b);
-  box-sizing: content-box;
+  padding: 0 var(--pad) var(--safe-b);
+  min-height: calc(84px + var(--safe-b));
   background: var(--ink);
   color: #fff;
   cursor: pointer;
@@ -971,4 +970,67 @@ button {
 }
 .pct.stalled {
   opacity: 0.72;
+}
+
+
+/* A visible scrollbar would carve a gutter out of the swatches and tiles,
+   which are meant to run edge to edge. */
+.screen::-webkit-scrollbar,
+.scroll::-webkit-scrollbar {
+  display: none;
+}
+.scroll {
+  scrollbar-width: none;
+}
+
+/* The empty state runs its swatches into the footer with nothing between. */
+.screen.to-edge {
+  padding-bottom: 0;
+}
+.screen.to-edge .swatches {
+  margin-bottom: 0;
+}
+
+/* A left-aligned inline link. .btn.plain is centred because it sits under a
+   primary button; this one sits in a column of left-aligned text. */
+.linkline {
+  align-self: flex-start;
+  width: auto;
+  background: none;
+  border: none;
+  padding: 22px 0 4px;
+  min-height: 44px;
+  color: var(--dim);
+  font: 500 clamp(13.5px, 3.9vw, 15px) / 1 Inter, sans-serif;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+.linkline:hover {
+  color: var(--ink);
+}
+
+/* Settings profile card */
+.me-sub {
+  font: 500 clamp(9.5px, 2.7vw, 10.5px) / 1 Inter, sans-serif;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.78;
+  margin-top: 8px;
+}
+.mepreview .art {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+}
+.mepreview .art > * {
+  transform: scale(0.62);
+}
+
+/* A bare gear with no label still needs to sit on the right. */
+.topbar.solo {
+  justify-content: flex-end;
+  padding-bottom: 0;
 }

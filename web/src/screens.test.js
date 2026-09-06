@@ -122,3 +122,15 @@ for (const name of Object.keys(SCREENS)) {
 }
 
 console.log(`screens: ${checked} states rendered clean at 320/390/768px`);
+
+// The footer once shipped with box-sizing:content-box alongside width:100% and
+// horizontal padding, which pushed it 2*pad wider than the viewport and clipped
+// its right edge. jsdom does no layout, so guard the cause rather than the
+// symptom: the global reset is border-box and nothing should opt out.
+{
+  const css = readFileSync(new URL('./style.css', import.meta.url), 'utf8');
+  assert.ok(!/box-sizing:\s*content-box/.test(css), 'no rule may opt out of border-box');
+  // Full-bleed elements rely on the scrollbar taking no gutter.
+  assert.ok(/scrollbar-width:\s*none/.test(css), 'scrollable panes must hide their scrollbar');
+  console.log('css: layout invariants hold');
+}
