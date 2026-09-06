@@ -193,6 +193,14 @@ const initials = (name = '') => {
 
 const eyebrow = (t) => el('div', { class: 'eyebrow' }, t);
 
+/** The radar's status line. The dot carries the connection state so it is
+ *  always visible; the text says what is true right now. */
+const liveLine = (text) =>
+  el('div', { class: 'live' + (S.status === 'reconnecting' ? ' off' : '') }, [
+    el('i'),
+    S.status === 'reconnecting' ? 'Reconnecting' : text,
+  ]);
+
 const head = (html, cls = '') => el('h2', { class: 'head ' + cls, html });
 
 const blackBtn = (label, on) => el('button', { class: 'btn', onClick: on }, label);
@@ -423,13 +431,7 @@ function radar() {
       // Not "searching" — nothing is being scanned. The socket is open and the
       // server pushes the instant another device joins, so the honest signal is
       // that we are connected and listening.
-      el('div', { class: 'topbar' }, [
-        el('div', { class: 'live' + (S.status === 'reconnecting' ? ' off' : '') }, [
-          el('i'),
-          S.status === 'reconnecting' ? 'Reconnecting' : 'Listening on this network',
-        ]),
-        gearBtn(),
-      ]),
+      el('div', { class: 'topbar' }, [liveLine('Listening on this network'), gearBtn()]),
       el('div', { class: 'screen to-edge', style: { justifyContent: 'flex-end' } }, [
         el('div', { class: 'qrwrap' }, [
           qrSvg(appUrl(), 'Scan to open this page on another device'),
@@ -473,7 +475,7 @@ function radar() {
   return [
     S.status === 'reconnecting' && el('div', { class: 'banner' }, 'Lost the network — reconnecting'),
     el('div', { class: 'topbar' }, [
-      eyebrow(
+      liveLine(
         S.files.length
           ? `${S.files.length} file${S.files.length > 1 ? 's' : ''} ready — pick a device`
           : `${count} device${count > 1 ? 's' : ''} on this Wi-Fi`
@@ -777,7 +779,7 @@ function transfer() {
                 border: '1.5px solid currentColor',
                 borderRadius: '14px',
                 padding: '19px',
-                font: '600 clamp(14px, 4.1vw, 16px)/1 Inter, sans-serif',
+                font: '600 clamp(14px, 4.1vw, 16px)/1 var(--font)',
                 textAlign: 'center',
                 opacity: 0.85,
               },

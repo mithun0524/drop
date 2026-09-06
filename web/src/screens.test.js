@@ -162,6 +162,12 @@ console.log(`screens: ${checked} states rendered clean at 320/390/768px`);
   );
   assert.ok(!/min-height:\s*0/.test(qrwrap), '.qrwrap must not permit collapse');
 
+  // The typeface is set in one place so it can be changed in one place.
+  assert.ok(!/\bInter\b/.test(css), 'Inter must not survive anywhere in the styles');
+  assert.ok(/--font:/.test(css), 'the family belongs in a single token');
+  const hardcoded = css.match(/font(-family)?:[^;]*(Helvetica|Arial|system-ui)[^;]*/g) ?? [];
+  assert.ok(hardcoded.length <= 1, 'only the --font token may name a concrete family');
+
   console.log('css: layout invariants hold');
 }
 

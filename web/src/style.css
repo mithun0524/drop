@@ -13,6 +13,9 @@
   --line: #edf0f4;
   --line2: #dcdfe4;
   --bg: #ffffff;
+  /* Space Grotesk: squared-off and slightly mechanical, with digits that can
+     carry the 190px percentage that is this app's biggest moment. */
+  --font: 'Space Grotesk', 'Helvetica Neue', Arial, sans-serif;
   --pad: clamp(18px, 6.7vw, 26px); /* screen gutter, 26px at the drawn width */
   /* The drawing got its top spacing from a fake 52px status bar inside the
      phone frame. The real OS bar replaces the notch part, but the breathing
@@ -38,7 +41,7 @@ body {
 body {
   background: var(--ink);
   color: var(--ink);
-  font-family: Inter, system-ui, -apple-system, sans-serif;
+  font-family: var(--font);
   font-feature-settings: 'tnum' 1;
   -webkit-text-size-adjust: 100%; /* iOS must not reflow our type on rotate */
 }
@@ -61,13 +64,13 @@ button {
 
 /* ---- type scale: fluid, anchored to the drawn sizes ----------------- */
 .eyebrow {
-  font: 500 clamp(10px, 2.9vw, 11px) / 1 Inter, sans-serif;
+  font: 500 clamp(10px, 2.9vw, 11px) / 1 var(--font);
   letter-spacing: 0.16em;
   text-transform: uppercase;
   opacity: 0.72;
 }
 .head {
-  font: 600 clamp(30px, 11.3vw, 52px) / 0.98 Inter, sans-serif;
+  font: 600 clamp(30px, 11.3vw, 52px) / 0.98 var(--font);
   letter-spacing: -0.04em;
   margin: 0;
   text-wrap: balance;
@@ -78,7 +81,7 @@ button {
   line-height: 1.02;
 }
 .body {
-  font: 400 clamp(14px, 4.1vw, 17px) / 1.5 Inter, sans-serif;
+  font: 400 clamp(14px, 4.1vw, 17px) / 1.5 var(--font);
   margin: 18px 0 0;
   max-width: 34ch;
   text-wrap: pretty;
@@ -87,17 +90,17 @@ button {
   font-size: clamp(13px, 3.6vw, 14px);
 }
 .meta {
-  font: 600 clamp(16px, 5.1vw, 21px) / 1.2 Inter, sans-serif;
+  font: 600 clamp(16px, 5.1vw, 21px) / 1.2 var(--font);
   margin: 22px 0 0;
 }
 .target-name {
-  font: 600 clamp(28px, 10.3vw, 44px) / 1 Inter, sans-serif;
+  font: 600 clamp(28px, 10.3vw, 44px) / 1 var(--font);
   letter-spacing: -0.04em;
   margin: 12px 0 0;
   overflow-wrap: anywhere;
 }
 .me-name {
-  font: 600 clamp(19px, 6.2vw, 26px) / 1.05 Inter, sans-serif;
+  font: 600 clamp(19px, 6.2vw, 26px) / 1.05 var(--font);
   letter-spacing: -0.03em;
 }
 
@@ -185,7 +188,7 @@ button {
   border: none;
   border-radius: 14px;
   padding: clamp(15px, 4.9vw, 19px);
-  font: 600 clamp(15px, 4.2vw, 16.5px) / 1 Inter, sans-serif;
+  font: 600 clamp(15px, 4.2vw, 16.5px) / 1 var(--font);
   width: 100%;
   min-height: 52px; /* stays a comfortable tap target when type shrinks */
   flex: none;
@@ -211,7 +214,7 @@ button {
   opacity: 0.75;
   padding: 16px 0 0;
   min-height: 48px;
-  font: 500 clamp(14px, 4vw, 15px) / 1 Inter, sans-serif;
+  font: 500 clamp(14px, 4vw, 15px) / 1 var(--font);
 }
 
 /* ---- device tiles --------------------------------------------------- */
@@ -268,7 +271,7 @@ button {
   overflow: hidden;
 }
 .tile .nm {
-  font: 600 clamp(17px, 5.9vw, 26px) / 1.05 Inter, sans-serif;
+  font: 600 clamp(17px, 5.9vw, 26px) / 1.05 var(--font);
   letter-spacing: -0.03em;
   width: 100%;
   overflow: hidden;
@@ -281,7 +284,7 @@ button {
   letter-spacing: -0.035em;
 }
 .tile .kind {
-  font: 500 clamp(8.5px, 2.5vw, 9.5px) / 1 Inter, sans-serif;
+  font: 500 clamp(8.5px, 2.5vw, 9.5px) / 1 var(--font);
   letter-spacing: 0.16em;
   text-transform: uppercase;
   opacity: 0.78;
@@ -352,11 +355,11 @@ button {
   flex: none;
 }
 .foot .dot {
-  font: 600 11.5px/1 Inter, sans-serif;
+  font: 600 11.5px/1 var(--font);
   letter-spacing: 0.02em;
 }
 .foot .nm {
-  font: 600 clamp(14px, 4.4vw, 17px) / 1 Inter, sans-serif;
+  font: 600 clamp(14px, 4.4vw, 17px) / 1 var(--font);
   letter-spacing: -0.01em;
   flex: 0 1 auto;
   min-width: 0;
@@ -365,7 +368,7 @@ button {
   white-space: nowrap;
 }
 .foot .side {
-  font: 500 clamp(9px, 2.6vw, 10px) / 1 Inter, sans-serif;
+  font: 500 clamp(9px, 2.6vw, 10px) / 1 var(--font);
   letter-spacing: 0.16em;
   text-transform: uppercase;
   opacity: 0.6;
@@ -418,23 +421,23 @@ button {
   margin: 14px 0 0;
 }
 .pct b {
-  font: 600 clamp(96px, 48vw, 210px) / 0.78 Inter, sans-serif;
+  font: 600 clamp(96px, 48vw, 210px) / 0.78 var(--font);
   letter-spacing: -0.055em;
 }
 .pct i {
-  font: 600 clamp(34px, 16vw, 70px) / 1 Inter, sans-serif;
+  font: 600 clamp(34px, 16vw, 70px) / 1 var(--font);
   font-style: normal;
   letter-spacing: -0.03em;
 }
 .subline {
-  font: 600 clamp(17px, 6.9vw, 30px) / 1.1 Inter, sans-serif;
+  font: 600 clamp(17px, 6.9vw, 30px) / 1.1 var(--font);
   letter-spacing: -0.02em;
   margin: 14px 0 0;
   /* Was nowrap in the drawing; at 320px "84 MB/s · 12 s left" overflowed. */
   overflow-wrap: anywhere;
 }
 .curfile {
-  font: 600 clamp(15px, 4.4vw, 17px) / 1.2 Inter, sans-serif;
+  font: 600 clamp(15px, 4.4vw, 17px) / 1.2 var(--font);
   margin: clamp(16px, 7vw, 30px) 0 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -448,7 +451,7 @@ button {
   gap: 14px;
   border-bottom: 1px solid var(--line);
   padding: 14px 0;
-  font: 500 clamp(14px, 4vw, 15px) / 1.2 Inter, sans-serif;
+  font: 500 clamp(14px, 4vw, 15px) / 1.2 var(--font);
 }
 .on-color .filerow {
   border-color: rgba(255, 255, 255, 0.28);
@@ -478,7 +481,7 @@ button {
   color: #fff;
   border: none;
   padding: clamp(16px, 5.1vw, 20px);
-  font: 600 clamp(15px, 4.2vw, 16.5px) / 1 Inter, sans-serif;
+  font: 600 clamp(15px, 4.2vw, 16.5px) / 1 var(--font);
   cursor: pointer;
   width: 100%;
   min-height: 56px;
@@ -505,7 +508,7 @@ button {
   background: #f2b705;
   color: var(--ink);
   padding: 13px 16px;
-  font: 600 clamp(12px, 3.7vw, 13.5px) / 1.3 Inter, sans-serif;
+  font: 600 clamp(12px, 3.7vw, 13.5px) / 1.3 var(--font);
   flex: none;
 }
 .swatches {
@@ -577,7 +580,7 @@ button {
   border-radius: 11px;
   padding: 12px 14px;
   min-height: 44px;
-  font: 600 clamp(13px, 3.7vw, 14px) / 1 Inter, sans-serif;
+  font: 600 clamp(13px, 3.7vw, 14px) / 1 var(--font);
   cursor: pointer;
 }
 .namepicks button.on {
@@ -607,7 +610,7 @@ button {
   display: flex;
   align-items: center;
   gap: 14px;
-  font: 600 clamp(14px, 4.1vw, 16px) / 1.3 Inter, sans-serif;
+  font: 600 clamp(14px, 4.1vw, 16px) / 1.3 var(--font);
 }
 .steps i {
   width: 26px;
@@ -617,7 +620,7 @@ button {
   color: #f2b705;
   display: grid;
   place-items: center;
-  font: 600 13px/1 Inter, sans-serif;
+  font: 600 13px/1 var(--font);
   font-style: normal;
 }
 .stats {
@@ -625,10 +628,10 @@ button {
   flex-wrap: wrap;
   gap: clamp(16px, 8vw, 34px);
   margin: clamp(22px, 9vw, 38px) 0 0;
-  font: 600 clamp(15px, 4.4vw, 17px) / 1 Inter, sans-serif;
+  font: 600 clamp(15px, 4.4vw, 17px) / 1 var(--font);
 }
 .bigcount {
-  font: 600 clamp(84px, 38vw, 165px) / 0.82 Inter, sans-serif;
+  font: 600 clamp(84px, 38vw, 165px) / 0.82 var(--font);
   letter-spacing: -0.06em;
 }
 .bar {
@@ -657,13 +660,13 @@ button {
 .qrow .nm {
   flex: 1;
   min-width: 0;
-  font: 500 14px/1.2 Inter, sans-serif;
+  font: 500 14px/1.2 var(--font);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .qrow .stat {
-  font: 600 10.5px/1 Inter, sans-serif;
+  font: 600 10.5px/1 var(--font);
   letter-spacing: 0.1em;
   flex: none;
   color: #8a8f99;
@@ -682,7 +685,7 @@ button {
   display: grid;
   place-items: center;
   border-radius: 12px;
-  font: 600 clamp(24px, 8.7vw, 38px) / 1 Inter, sans-serif;
+  font: 600 clamp(24px, 8.7vw, 38px) / 1 var(--font);
 }
 .keys {
   display: grid;
@@ -696,7 +699,7 @@ button {
   border-radius: 12px;
   padding: clamp(13px, 4.4vw, 17px) 0;
   min-height: 48px;
-  font: 500 clamp(17px, 5vw, 19px) / 1 Inter, sans-serif;
+  font: 500 clamp(17px, 5vw, 19px) / 1 var(--font);
   color: var(--ink);
   cursor: pointer;
 }
@@ -775,7 +778,7 @@ button {
   border-radius: 20px;
   display: grid;
   place-items: center;
-  font: 600 26px/1 Inter, sans-serif;
+  font: 600 26px/1 var(--font);
   background: rgba(255, 255, 255, 0.86);
   color: var(--ink);
   z-index: 10;
@@ -822,7 +825,7 @@ button {
   transform: scale(0.94);
 }
 .avatar {
-  font: 600 14px/1 Inter, sans-serif;
+  font: 600 14px/1 var(--font);
   letter-spacing: 0.02em;
 }
 
@@ -880,7 +883,7 @@ button {
 
 /* ---- settings rows --------------------------------------------------- */
 .section {
-  font: 500 clamp(10px, 2.9vw, 11px) / 1 Inter, sans-serif;
+  font: 500 clamp(10px, 2.9vw, 11px) / 1 var(--font);
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--faint);
@@ -908,11 +911,11 @@ button {
   background: var(--line);
 }
 .row-label {
-  font: 600 clamp(15px, 4.3vw, 16px) / 1.25 Inter, sans-serif;
+  font: 600 clamp(15px, 4.3vw, 16px) / 1.25 var(--font);
   overflow-wrap: anywhere;
 }
 .row-sub {
-  font: 400 clamp(12.5px, 3.6vw, 13.5px) / 1.35 Inter, sans-serif;
+  font: 400 clamp(12.5px, 3.6vw, 13.5px) / 1.35 var(--font);
   color: var(--dim);
   margin-top: 5px;
   overflow-wrap: anywhere;
@@ -964,7 +967,7 @@ button {
   flex: none;
 }
 .version {
-  font: 500 11px/1 Inter, sans-serif;
+  font: 500 11px/1 var(--font);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--faint);
@@ -990,7 +993,7 @@ button {
   flex: none;
 }
 .queue-pct {
-  font: 600 clamp(46px, 17vw, 72px) / 1 Inter, sans-serif;
+  font: 600 clamp(46px, 17vw, 72px) / 1 var(--font);
   letter-spacing: -0.05em;
 }
 .queue-pct span {
@@ -1036,7 +1039,7 @@ button {
   padding: 22px 0 4px;
   min-height: 44px;
   color: var(--dim);
-  font: 500 clamp(13.5px, 3.9vw, 15px) / 1 Inter, sans-serif;
+  font: 500 clamp(13.5px, 3.9vw, 15px) / 1 var(--font);
   text-align: left;
   text-decoration: underline;
   text-underline-offset: 4px;
@@ -1048,7 +1051,7 @@ button {
 
 /* Settings profile card */
 .me-sub {
-  font: 500 clamp(9.5px, 2.7vw, 10.5px) / 1 Inter, sans-serif;
+  font: 500 clamp(9.5px, 2.7vw, 10.5px) / 1 var(--font);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   opacity: 0.78;
@@ -1061,7 +1064,7 @@ button {
   width: 44px;
 }
 .mepreview .art {
-  font: 600 22px/1 Inter, sans-serif;
+  font: 600 22px/1 var(--font);
   letter-spacing: -0.01em;
   border: 2px solid currentColor;
   border-radius: 50%;
@@ -1080,29 +1083,33 @@ button {
    Discovery is push-based: the socket is open and the server announces a new
    device the moment it joins. So this is a heartbeat showing the channel is
    alive, never a progress indicator for work that might fail. */
+/* Tracked-out grey caps made this the hardest thing on the screen to read for
+   the one line that reports whether the app is working. Sentence case, in the
+   green that already means "connected" in this palette. */
 .live {
   display: flex;
   align-items: center;
   gap: 9px;
   min-width: 0;
-  font: 500 clamp(10px, 2.9vw, 11px) / 1 Inter, sans-serif;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--faint);
+  font: 600 clamp(13px, 3.8vw, 15px) / 1.2 var(--font);
+  letter-spacing: -0.01em;
+  color: #0f8a4d;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.live.off {
+  color: #c2410c;
+}
 .live i {
   flex: none;
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: #17845a;
+  background: currentColor;
   animation: heartbeat 2.4s ease-in-out infinite;
 }
 .live.off i {
-  background: #c2410c;
   animation-duration: 0.9s;
 }
 
@@ -1110,11 +1117,11 @@ button {
   0%,
   100% {
     opacity: 1;
-    box-shadow: 0 0 0 0 rgba(23, 132, 90, 0.4);
+    box-shadow: 0 0 0 0 currentColor;
   }
   50% {
-    opacity: 0.45;
-    box-shadow: 0 0 0 5px rgba(23, 132, 90, 0);
+    opacity: 0.5;
+    box-shadow: 0 0 0 5px transparent;
   }
 }
 
@@ -1168,14 +1175,14 @@ button {
   border-radius: 10px;
 }
 .qrcap {
-  font: 500 clamp(10px, 2.9vw, 11px) / 1 Inter, sans-serif;
+  font: 500 clamp(10px, 2.9vw, 11px) / 1 var(--font);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--faint);
   text-align: center;
 }
 .qrurl {
-  font: 500 clamp(12px, 3.4vw, 13px) / 1 Inter, sans-serif;
+  font: 500 clamp(12px, 3.4vw, 13px) / 1 var(--font);
   color: var(--dim);
   text-align: center;
   user-select: all; /* so it can be selected and typed out if scanning fails */
