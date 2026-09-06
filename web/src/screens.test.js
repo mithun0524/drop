@@ -64,6 +64,7 @@ const STATES = {
   waiting: { target: PEER, files: MANIFEST },
   declined: { target: PEER },
   incoming: { target: PEER, manifest: MANIFEST },
+  awaited: { target: PEER, incomingFrom: PEER },
   sending: { target: PEER, files: MANIFEST, pct: 42, speed: 84, index: 0, fileName: 'x.raw' },
   'sending-queue': { screen: 'sending', target: PEER, files: MANIFEST, pct: 42, speed: 84, showQueue: true, failed: [1] },
   'sending-stalled': { screen: 'sending', target: PEER, files: MANIFEST, pct: 62, stalled: true },

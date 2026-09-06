@@ -291,12 +291,20 @@ let hintTimer = 0;
 
 net.addEventListener('hint', ({ detail: { from, kind } }) => {
   clearTimeout(hintTimer);
-  if (kind !== 'picking') return set({ incomingFrom: null });
+  if (kind !== 'picking')
+    return set({ incomingFrom: null, screen: S.screen === 'awaited' ? 'radar' : S.screen });
   const peer = net.peers.get(from);
   if (!peer) return;
-  set({ incomingFrom: peer });
+  set({
+    incomingFrom: peer,
+    screen: S.screen === 'radar' ? 'awaited' : S.screen,
+    target: S.screen === 'radar' ? peer : S.target,
+  });
   // If they close the tab mid-pick there is no 'stopped', so it lapses.
-  hintTimer = setTimeout(() => set({ incomingFrom: null }), 90_000);
+  hintTimer = setTimeout(
+    () => set({ incomingFrom: null, screen: S.screen === 'awaited' ? 'radar' : S.screen }),
+    90_000
+  );
 });
 
 net.addEventListener('stalled', (e) => {
@@ -587,7 +595,12 @@ function radar() {
           {
             class: 'tile' + (S.incomingFrom?.id === p.id ? ' waiting-on' : ''),
             style: { background: COLORS[p.color] ?? COLORS.blue, color: ON[p.color] ?? '#fff' },
-            onClick: () => (S.files.length ? offerFiles(p, S.files) : pickTarget(p)),
+            onClick: () =>
+              S.incomingFrom?.id === p.id
+                ? set({ screen: 'awaited', target: p })
+                : S.files.length
+                  ? offerFiles(p, S.files)
+                  : pickTarget(p),
           },
           [
             el('div', { class: 'art' }, [silhouette(p.kind)]),
@@ -767,6 +780,24 @@ function declined() {
         el('p', { class: 'body' }, ['Nothing was sent. Try again, or pick a different device.']),
       ]),
       blackBtn('Back to devices', () => set({ screen: 'radar', target: null, files: [] })),
+    ]),
+  ];
+}
+
+/** Nothing is being asked yet — this only exists so the tile is not a button
+ *  that would start a send in the opposite direction. */
+function awaited() {
+  return [
+    el('div', { class: 'screen' }, [
+      eyebrow('Incoming'),
+      el('div', { class: 'center' }, [
+        el('div', { class: 'pulse' }),
+        head(`${S.target.name} is<br>choosing files<br>for you.`, 'sm'),
+        el('p', { class: 'body' }, [
+          'Nothing to do yet. You will get to accept or decline once they have picked.',
+        ]),
+      ]),
+      ghostBtn('Back to devices', () => set({ screen: 'radar' })),
     ]),
   ];
 }
@@ -1338,6 +1369,7 @@ const SCREENS = {
   waiting,
   declined,
   incoming,
+  awaited,
   sending: transfer,
   receiving: transfer,
   done,
@@ -1353,7 +1385,16 @@ const SCREENS = {
 };
 
 // Screens that take the peer's colour across the whole surface.
-const COLORED = new Set(['pick', 'connecting', 'waiting', 'declined', 'incoming', 'done', 'saved']);
+const COLORED = new Set([
+  'pick',
+  'connecting',
+  'waiting',
+  'declined',
+  'incoming',
+  'awaited',
+  'done',
+  'saved',
+]);
 
 /* Everything the screens actually read. Rebuilding the DOM restarts every CSS
    animation in it, so a render that would change nothing must not happen — the
