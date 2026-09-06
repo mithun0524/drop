@@ -30,6 +30,7 @@ import {
   canStreamToDisk,
   memoryCeiling,
   createSession,
+  formatSpeed,
   opfsSink,
   canUseOpfs,
   pruneOpfs,
@@ -455,7 +456,7 @@ function buildReceiver(onResume) {
         try {
           // Keyed by transfer so a resumed file reuses its own partial and a
           // prune can tell live scratch from dead.
-          return await opfsSink(`${S.tid ?? 'x'}-${i}`);
+          return await opfsSink(`${session.tid ?? 'once'}-${i}`);
         } catch {
           /* quota refused or no access — memory is still better than failing */
         }
@@ -1177,7 +1178,7 @@ function transfer() {
         el('div', { class: 'queue-head' }, [
           el('div', { class: 'queue-pct' }, [pct, el('span', {}, '%')]),
           el('div', { style: { textAlign: 'right' } }, [
-            el('div', { class: 'meta', style: { margin: 0 } }, `${S.speed.toFixed(0)} MB/s`),
+            el('div', { class: 'meta', style: { margin: 0 } }, formatSpeed(S.speed)),
             el('div', { class: 'eyebrow', style: { marginTop: '8px' } }, `File ${S.index + 1} of ${count}`),
           ]),
         ]),
@@ -1197,9 +1198,13 @@ function transfer() {
       content('#101014'),
       // The same content again, in the ink that reads on the colour, clipped to
       // the filled region — so the numeral inverts as the fill climbs past it.
-      Object.assign(content(on), {
-        style: `position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end;padding:0 26px 26px;color:${on};pointer-events:none;clip-path:inset(0 0 ${100 - pct}% 0);transition:clip-path .45s cubic-bezier(.3,.8,.3,1)`,
-      }),
+      // It must use the same class as the base layer: hardcoding its padding
+      // put the two copies at different offsets and showed both.
+      (() => {
+        const knock = content(on);
+        knock.style.clipPath = `inset(0 0 ${100 - pct}% 0)`;
+        return knock;
+      })(),
     ]),
   ];
 }
@@ -1375,7 +1380,7 @@ function done() {
         el('div', { class: 'stats' }, [
           el('span', {}, formatSize(total)),
           el('span', {}, secs.toFixed(1) + ' s'),
-          el('span', {}, (total / 1e6 / secs).toFixed(0) + ' MB/s'),
+          el('span', {}, formatSpeed(total / 1e6 / secs)),
         ]),
         el(
           'div',
@@ -1405,7 +1410,7 @@ function saved() {
         el(
           'div',
           { class: 'meta', style: { opacity: 0.8 } },
-          `${formatSize(total)} · ${(total / 1e6 / secs).toFixed(0)} MB/s average`
+          `${formatSize(total)} · ${formatSpeed(total / 1e6 / secs)} average`
         ),
         isNative()
           ? el(
@@ -1457,8 +1462,12 @@ async function saveAll() {
     return set({ saved: true });
   }
 
-  const files = S.results.map(([name, blob]) =>
-    blob instanceof File ? blob : new File([blob], name, { type: 'application/octet-stream' })
+  // A File from the private filesystem carries its storage key as its name —
+  // that key is an implementation detail and must never reach a download. The
+  // name and type the sender declared are the only ones that mean anything.
+  const files = S.results.map(
+    ([name, blob, type]) =>
+      new File([blob], name, { type: type || 'application/octet-stream' })
   );
 
   // Phones have no download folder worth speaking of, but they do have a share

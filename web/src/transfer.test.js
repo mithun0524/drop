@@ -295,3 +295,43 @@ console.log('transfer: disk sink and ceiling checks passed');
 }
 
 console.log('transfer: resume checks passed');
+
+// 14. Speed has to read as a speed. Sub-megabyte transfers rounded to
+//     "0 MB/s", which looks like a stalled connection rather than a slow one.
+{
+  const { formatSpeed } = await import('./transfer.js');
+  assert.equal(formatSpeed(0), '—');
+  assert.equal(formatSpeed(0.35), '350 KB/s');
+  assert.equal(formatSpeed(0.001), '1 KB/s');
+  assert.equal(formatSpeed(1.5), '1.5 MB/s');
+  assert.equal(formatSpeed(84), '84 MB/s');
+  assert.equal(formatSpeed(9.4), '9.4 MB/s');
+  assert.ok(!/^0 MB\/s$/.test(formatSpeed(0.4)), 'a slow transfer is never "0 MB/s"');
+}
+
+// 15. The declared type travels with the file, or a saved video becomes a .txt.
+{
+  const bytes = Buffer.from('video-ish');
+  const ch = fakeChannel();
+  const files = [Object.assign(new File([bytes], 'clip.mp4', { type: 'video/mp4' }), {})];
+  ch.send(JSON.stringify({ t: 'offer', files: describe(files) }));
+  await sendFiles(ch, files);
+
+  const results = [];
+  const rx = createReceiver({
+    session: createSession(),
+    openSink: async () => {
+      const parts = [];
+      return { write: (c) => parts.push(c), close: async () => Buffer.concat(parts) };
+    },
+    onDone: (m, t, f, r) => results.push(...r),
+  });
+  for (const msg of ch.out) await rx.handle(msg);
+
+  assert.equal(results.length, 1);
+  const [name, , type] = results[0];
+  assert.equal(name, 'clip.mp4', 'the declared name survives');
+  assert.equal(type, 'video/mp4', 'the declared type survives');
+}
+
+console.log('transfer: speed and type checks passed');

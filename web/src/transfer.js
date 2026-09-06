@@ -29,6 +29,13 @@ export const describe = (files) =>
 
 export const totalBytes = (files) => files.reduce((a, f) => a + f.size, 0);
 
+/** Below a megabyte a second, "0 MB/s" is not a speed — it is a bug report. */
+export function formatSpeed(mbPerSec) {
+  if (!mbPerSec || mbPerSec <= 0) return '—';
+  if (mbPerSec < 1) return Math.round(mbPerSec * 1000) + ' KB/s';
+  return mbPerSec.toFixed(mbPerSec < 10 ? 1 : 0) + ' MB/s';
+}
+
 export function formatSize(b) {
   if (b >= 1e9) return (b / 1e9).toFixed(2) + ' GB';
   if (b >= 1e6) return (b / 1e6).toFixed(1) + ' MB';
@@ -179,7 +186,8 @@ export function createReceiver({
         const result = await sink.close();
         st.sinks[index] = null;
         sink = null;
-        if (result) st.results.push([st.manifest[index].name, result]);
+        if (result)
+          st.results.push([st.manifest[index].name, result, st.manifest[index].type]);
         onFile?.(st.manifest[index], index, result);
         return;
       }
