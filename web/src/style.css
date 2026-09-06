@@ -1135,27 +1135,36 @@ button {
   }
 }
 
-/* The five blocks are the slots a device drops into, so they idle rather than
-   sit still — a slow stagger that reads as "ready", not "loading". */
-.swatches.waiting div {
-  animation: swatchwait 3.4s ease-in-out infinite;
-  transform-origin: bottom;
+/* The five blocks are the slots a device drops into. Moving them individually
+   broke the strip into a ragged edge with the background showing through the
+   gaps, which read as a glitch. The blocks stay flush and a single highlight
+   travels across them instead — one clearly deliberate motion. */
+.swatches.waiting {
+  position: relative;
+}
+.swatches.waiting::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 34%,
+    rgba(255, 255, 255, 0.42) 50%,
+    transparent 66%
+  );
+  transform: translateX(-100%);
+  animation: sweep 3s cubic-bezier(0.5, 0, 0.5, 1) infinite;
 }
 
-@keyframes swatchwait {
-  0%,
-  100% {
-    transform: translateY(38%);
-  }
-  50% {
-    transform: translateY(0);
+@keyframes sweep {
+  to {
+    transform: translateX(100%);
   }
 }
 
-/* Motion off: the blocks still have to read as present, so they sit at rest
-   rather than frozen mid-stagger. */
 @media (prefers-reduced-motion: reduce) {
-  .swatches.waiting div {
-    transform: translateY(0);
+  .swatches.waiting::after {
+    display: none;
   }
 }
