@@ -483,10 +483,18 @@ async function accept() {
   let writables = null;
   if (canStreamToDisk() && overCeiling(S.manifest)) {
     try {
-      writables = [];
-      for (const f of S.manifest) {
-        const handle = await window.showSaveFilePicker({ suggestedName: f.name });
-        writables.push(await handle.createWritable());
+      if (S.manifest.length === 1) {
+        const handle = await window.showSaveFilePicker({ suggestedName: S.manifest[0].name });
+        writables = [await handle.createWritable()];
+      } else {
+        // One folder, not one dialog per file: a batch of forty photos would
+        // otherwise open forty save prompts.
+        const dir = await window.showDirectoryPicker({ mode: 'readwrite' });
+        writables = [];
+        for (const f of S.manifest) {
+          const handle = await dir.getFileHandle(safeName(f.name), { create: true });
+          writables.push(await handle.createWritable());
+        }
       }
     } catch {
       writables = null; // picker dismissed — fall back to memory
@@ -495,6 +503,17 @@ async function accept() {
 
   net.channel(S.target.id)?.send(JSON.stringify({ t: 'accept' }));
   set({ screen: 'receiving', pct: 0, startedAt: performance.now(), bytes: 0, writables });
+}
+
+/** The sender names these files, and the receiver has handed us a folder
+ *  handle, so a name must never be able to point outside it. */
+export function safeName(name) {
+  const base = String(name).split(/[/\\]/).pop() || 'file';
+  const clean = base
+    .replace(/[\u0000-\u001f<>:"|?*]/g, '_')
+    .replace(/^\.+/, '_')
+    .trim();
+  return clean.slice(0, 180) || 'file';
 }
 
 const totalOf = (files) => (files ?? []).reduce((a, f) => a + f.size, 0);
