@@ -311,9 +311,16 @@ function radar() {
 
   if (count === 0) {
     return [
-      // No label up here: with nothing on screen, a lone "NEARBY" just orphans
-      // itself above 500px of white. The gear is the only chrome that earns it.
-      el('div', { class: 'topbar solo' }, [gearBtn()]),
+      // Not "searching" — nothing is being scanned. The socket is open and the
+      // server pushes the instant another device joins, so the honest signal is
+      // that we are connected and listening.
+      el('div', { class: 'topbar' }, [
+        el('div', { class: 'live' + (S.status === 'reconnecting' ? ' off' : '') }, [
+          el('i'),
+          S.status === 'reconnecting' ? 'Reconnecting' : 'Listening on this network',
+        ]),
+        gearBtn(),
+      ]),
       el('div', { class: 'screen to-edge', style: { justifyContent: 'flex-end' } }, [
         head('Nobody else<br>is here yet.'),
         el('p', { class: 'body', style: { color: 'var(--dim)' } }, [
@@ -326,8 +333,10 @@ function radar() {
         ),
         el(
           'div',
-          { class: 'swatches' },
-          KEYS.map((k) => el('div', { style: { background: COLORS[k] } }))
+          { class: 'swatches waiting' },
+          KEYS.map((k, i) =>
+            el('div', { style: { background: COLORS[k], animationDelay: i * 0.16 + 's' } })
+          )
         ),
       ]),
       footer(),

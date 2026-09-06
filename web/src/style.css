@@ -530,6 +530,7 @@ button {
   display: flex;
   margin: 30px calc(var(--pad) * -1) 0;
   height: clamp(52px, 20vw, 80px);
+  overflow: hidden; /* the idle stagger must clip, not spill into the footer */
   flex: none;
 }
 .swatches div {
@@ -1084,4 +1085,72 @@ button {
 .topbar.solo {
   justify-content: flex-end;
   padding-bottom: 0;
+}
+
+
+/* ---- "listening", not "searching" ------------------------------------
+   Discovery is push-based: the socket is open and the server announces a new
+   device the moment it joins. So this is a heartbeat showing the channel is
+   alive, never a progress indicator for work that might fail. */
+.live {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  font: 500 clamp(10px, 2.9vw, 11px) / 1 Inter, sans-serif;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.live i {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #17845a;
+  animation: heartbeat 2.4s ease-in-out infinite;
+}
+.live.off i {
+  background: #c2410c;
+  animation-duration: 0.9s;
+}
+
+@keyframes heartbeat {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(23, 132, 90, 0.4);
+  }
+  50% {
+    opacity: 0.45;
+    box-shadow: 0 0 0 5px rgba(23, 132, 90, 0);
+  }
+}
+
+/* The five blocks are the slots a device drops into, so they idle rather than
+   sit still — a slow stagger that reads as "ready", not "loading". */
+.swatches.waiting div {
+  animation: swatchwait 3.4s ease-in-out infinite;
+  transform-origin: bottom;
+}
+
+@keyframes swatchwait {
+  0%,
+  100% {
+    transform: translateY(38%);
+  }
+  50% {
+    transform: translateY(0);
+  }
+}
+
+/* Motion off: the blocks still have to read as present, so they sit at rest
+   rather than frozen mid-stagger. */
+@media (prefers-reduced-motion: reduce) {
+  .swatches.waiting div {
+    transform: translateY(0);
+  }
 }
