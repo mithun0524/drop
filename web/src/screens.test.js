@@ -132,5 +132,23 @@ console.log(`screens: ${checked} states rendered clean at 320/390/768px`);
   assert.ok(!/box-sizing:\s*content-box/.test(css), 'no rule may opt out of border-box');
   // Full-bleed elements rely on the scrollbar taking no gutter.
   assert.ok(/scrollbar-width:\s*none/.test(css), 'scrollable panes must hide their scrollbar');
+
+  // A silhouette shrunk with transform keeps its full layout box, so it
+  // overflows any small container it is dropped into (this shipped: the phone
+  // rendered below the footer's 30px circle). They scale via --dev instead.
+  // Only the rules that hold a silhouette — ":active" transforms are press
+  // feedback and are meant to be paint-only.
+  const devRules = css.match(/\.(foot \.dot|avatar|tiles\.many \.art|mepreview \.art)\s*>\s*\*\s*\{[^}]*\}/g) ?? [];
+  assert.ok(devRules.length >= 4, 'expected the silhouette container rules');
+  for (const rule of devRules)
+    assert.ok(!/transform:\s*scale/.test(rule), `silhouette must scale via --dev, not transform: ${rule.slice(0, 60)}`);
+
+  // place-items centres each item in its own track; it does not centre the
+  // track stack. Both round containers need place-content.
+  for (const sel of ['.foot .dot', '.avatar']) {
+    const rule = css.match(new RegExp(sel.replace(/[.]/g, '\\.') + '\\s*\\{[^}]*\\}'))?.[0] ?? '';
+    assert.ok(/place-content:\s*center/.test(rule), `${sel} must use place-content, not place-items`);
+  }
+
   console.log('css: layout invariants hold');
 }

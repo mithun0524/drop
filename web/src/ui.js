@@ -96,11 +96,18 @@ const plainBtn = (label, on) => el('button', { class: 'btn plain', onClick: on }
 const closeBtn = (on) =>
   el('button', { class: 'gear close', 'aria-label': 'Close', onClick: on }, [el('span'), el('span')]);
 
+// The settings entry is your own avatar: same colour and silhouette the other
+// devices see you as, so the control reads as "you" rather than as a menu.
 const gearBtn = () =>
   el(
     'button',
-    { class: 'gear', 'aria-label': 'Settings', onClick: () => set({ screen: 'settings' }) },
-    [el('span'), el('span'), el('span')]
+    {
+      class: 'avatar',
+      'aria-label': `You are ${S.me.name}. Open settings`,
+      style: { background: COLORS[S.me.color], color: ON[S.me.color] },
+      onClick: () => set({ screen: 'settings' }),
+    },
+    [silhouette(S.me.kind)]
   );
 
 const row = (label, sub, onClick, extra) =>
@@ -371,7 +378,7 @@ function radar() {
 function footer() {
   return el(
     'button',
-    { class: 'foot', onClick: () => set({ screen: 'identity' }) },
+    { class: 'foot', onClick: () => set({ screen: 'settings' }) },
     [
       el(
         'div',

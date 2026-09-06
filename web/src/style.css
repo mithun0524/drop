@@ -292,49 +292,54 @@ button {
 .tiles.many .tile .kind {
   display: none;
 }
-/* The silhouettes are drawn at a fixed size, so scale the whole group down
-   rather than restating every dimension per breakpoint. */
 .tiles.many .art > * {
-  transform: scale(0.46);
+  --dev: 0.46;
 }
 @media (max-width: 380px) {
   .tiles.many .art > * {
-    transform: scale(0.36);
+    --dev: 0.36;
   }
 }
 
+/* One silhouette set, sized by --dev. Using real width/height rather than
+   transform keeps the layout box honest, so a silhouette dropped into a 30px
+   circle actually occupies 30px instead of overflowing it. */
+.dev-phone,
+.dev-tablet,
+.dev-laptop {
+  --dev: 1;
+  flex: none;
+}
 .dev-phone {
-  width: 50px;
-  height: 80px;
-  border-radius: 11px;
+  width: calc(50px * var(--dev));
+  height: calc(80px * var(--dev));
+  border-radius: calc(11px * var(--dev));
   background: currentColor;
-  max-height: 100%;
 }
 .dev-tablet {
-  width: 64px;
-  height: 86px;
-  border-radius: 9px;
+  width: calc(64px * var(--dev));
+  height: calc(86px * var(--dev));
+  border-radius: calc(9px * var(--dev));
   background: currentColor;
-  max-height: 100%;
 }
 .dev-laptop {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: calc(4px * var(--dev));
 }
 .dev-laptop i {
   display: block;
-  width: 70px;
-  height: 46px;
-  border-radius: 5px;
+  width: calc(70px * var(--dev));
+  height: calc(46px * var(--dev));
+  border-radius: calc(5px * var(--dev));
   background: currentColor;
 }
 .dev-laptop b {
   display: block;
-  width: 86px;
-  height: 8px;
-  border-radius: 4px;
+  width: calc(86px * var(--dev));
+  height: calc(8px * var(--dev));
+  border-radius: calc(4px * var(--dev));
   background: currentColor;
 }
 
@@ -358,14 +363,15 @@ button {
   height: 30px;
   border-radius: 50%;
   display: grid;
-  place-items: center;
+  place-content: center;
+  overflow: hidden;
   flex: none;
 }
 .foot .dot > * {
-  transform: scale(0.19); /* the silhouettes are drawn at tile size */
+  --dev: 0.19;
 }
 .foot .dot .dev-laptop {
-  transform: scale(0.17);
+  --dev: 0.16;
 }
 .foot .nm {
   font: 600 clamp(14px, 4.4vw, 17px) / 1 Inter, sans-serif;
@@ -799,22 +805,55 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  min-height: 38px;
   padding: var(--top) var(--pad) 14px;
+}
+.topbar .eyebrow {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .topbar.flush {
   padding: 0 0 6px;
+}
+
+/* Your avatar, doubling as the settings control. */
+.avatar {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  display: grid;
+  place-content: center;
+  overflow: hidden;
+  padding: 0;
+  transition: transform 0.12s;
+}
+.avatar:active {
+  transform: scale(0.94);
+}
+.avatar > * {
+  --dev: 0.24;
+}
+.avatar .dev-laptop {
+  --dev: 0.2;
 }
 
 .gear {
   flex: none;
   width: 44px;
   height: 44px;
-  margin: -10px -10px -10px 0;
+  margin: 0 -10px 0 0;
   border: none;
   background: none;
   cursor: pointer;
   display: grid;
-  place-items: center;
+  /* place-content, not place-items: place-items centres each dot inside its
+     own track and leaves the track stack pinned to the top of the button. */
+  place-content: center;
   gap: 3px;
   grid-auto-rows: 4px;
   opacity: 0.55;
@@ -835,12 +874,18 @@ button {
   grid-auto-rows: auto;
   gap: 0;
   position: relative;
+  place-content: stretch;
+  opacity: 0.75;
 }
 .gear.close span {
   position: absolute;
+  top: 50%;
+  left: 50%;
   width: 17px;
   height: 2px;
+  margin: -1px 0 0 -8.5px;
   border-radius: 1px;
+  background: currentColor;
 }
 .gear.close span:first-child {
   transform: rotate(45deg);
@@ -1028,11 +1073,11 @@ button {
 .mepreview .art {
   flex: none;
   display: grid;
-  place-items: center;
+  place-content: center;
   width: 44px;
 }
 .mepreview .art > * {
-  transform: scale(0.62);
+  --dev: 0.62;
 }
 
 /* A bare gear with no label still needs to sit on the right. */
