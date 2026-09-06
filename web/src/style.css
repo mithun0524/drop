@@ -92,6 +92,11 @@ button {
 .body.sm {
   font-size: clamp(13px, 3.6vw, 14px);
 }
+/* Copy sitting directly above an action needs room to not collide with it. */
+.body + .btn,
+.warn + .btn {
+  margin-top: clamp(14px, 3vh, 24px);
+}
 .meta {
   font: 600 clamp(15px, 1.6vh + 2.1vw, 21px) / 1.2 var(--font);
   margin: clamp(14px, 2.4vh, 22px) 0 0;

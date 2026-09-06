@@ -851,9 +851,6 @@ function pick() {
         el('div', { class: 'hero-dev' }, [silhouette(S.target.kind)]),
         el('div', { class: 'kind' }, kindLabel(S.target.kind)),
       ]),
-      el('p', { class: 'body sm', style: { opacity: 0.85, alignSelf: 'center', textAlign: 'center' } }, [
-        "Your device's own picker opens next. Drop never browses your storage itself.",
-      ]),
       blackBtn('Choose files', () => input.click()),
       plainBtn('Cancel', () => {
         net.hint(S.target.id, 'stopped');
