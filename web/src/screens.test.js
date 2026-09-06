@@ -151,16 +151,23 @@ console.log(`screens: ${checked} states rendered clean at 320/390/768px`);
     assert.ok(/place-content:\s*center/.test(rule), `${sel} must use place-content, not place-items`);
   }
 
-  // A flex item that can shrink below its content does not clip — it spills,
-  // and later siblings draw through it. This shipped: the QR block collapsed
-  // and the heading printed on top of its caption.
+  // The QR block may shrink, but only because the QR inside it shrinks too.
+  // A shrinking box holding a fixed-size child does not clip — it spills, and
+  // the heading then draws through it (this shipped once).
   const qrwrap = css.match(/\.qrwrap\s*\{[^}]*\}/)?.[0] ?? '';
-  assert.ok(qrwrap, 'expected the .qrwrap rule');
+  const qrbox = css.match(/\.qrbox\s*\{[^}]*\}/)?.[0] ?? '';
+  const qr = css.match(/\.qr\s*\{[^}]*\}/)?.[0] ?? '';
+  assert.ok(qrwrap && qrbox && qr, 'expected the QR rules');
+  assert.ok(/min-height:\s*0/.test(qrbox), '.qrbox must be able to yield space');
   assert.ok(
-    /flex:\s*0\s+0\s+auto/.test(qrwrap),
-    '.qrwrap must not be allowed to shrink below its content'
+    /max-height:/.test(qr) && /height:\s*100%/.test(qr),
+    '.qr must be bounded by its box, or it spills when the box shrinks'
   );
-  assert.ok(!/min-height:\s*0/.test(qrwrap), '.qrwrap must not permit collapse');
+
+  // Pages do not scroll; only panes marked to do so.
+  const screenRule = css.match(/\.screen\s*\{[^}]*\}/)?.[0] ?? '';
+  assert.ok(/overflow:\s*hidden/.test(screenRule), 'a screen is one screenful');
+  assert.ok(/\.screen\.scrolls/.test(css), 'long screens need an explicit opt-in');
 
   // The typeface is set in one place so it can be changed in one place.
   assert.ok(/--font:/.test(css), 'the family belongs in a single token');

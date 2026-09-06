@@ -111,9 +111,15 @@ button {
   flex-direction: column;
   min-height: 0;
   padding: var(--top) var(--pad) calc(var(--pad) + var(--safe-b));
-  overflow-y: auto; /* last-resort escape hatch; normally nothing scrolls */
+  /* A screen is one screenful. Anything genuinely long — a file list, the
+     settings rows — scrolls inside its own pane, never the page. */
+  overflow: hidden;
+}
+/* Settings is a real list and is the one screen that scrolls as a whole. */
+.screen.scrolls {
+  overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: none; /* a gutter here would inset every full-bleed edge */
+  scrollbar-width: none;
 }
 
 /* Added by render() only when the screen actually changed. */
@@ -127,11 +133,11 @@ button {
   flex: 1 1 auto;
   min-height: 0;
 }
-/* Centres when there is room, grows past the fold when there isn't — which is
-   what lets .screen scroll instead of clipping on a short viewport. */
+/* Yields space when the screen is short, rather than forcing an overflow that
+   can no longer be scrolled to. */
 .center {
   flex: 1 1 auto;
-  min-height: min-content;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -1160,24 +1166,31 @@ button {
 /* ---- QR ---------------------------------------------------------------
    Not decoration: the empty state's only job is getting a second device onto
    this page, and typing a workers.dev host on a phone is where people give up. */
+/* The text takes what it needs; the QR takes whatever is left. Sizing it as a
+   fraction of the viewport meant guessing, and the guess was wrong on every
+   height it was not tuned for. */
 .qrwrap {
-  /* Never shrink below the QR's own height: a flex item that collapses does
-     not clip, it spills, and the heading below then draws through it. The auto
-     margins centre it in whatever space is left above the text instead. */
-  flex: 0 0 auto;
-  margin: auto 0;
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: clamp(7px, 1.6vh, 12px);
-  padding: 4px 0 clamp(10px, 2.6vh, 28px);
+  justify-content: center;
+  gap: clamp(6px, 1.4vh, 12px);
+  padding: 4px 0 clamp(10px, 2.4vh, 26px);
+}
+.qrbox {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  width: 100%;
 }
 .qr {
-  /* Sized against height as well as width, so it shrinks into a short
-     viewport rather than needing to be hidden from it. */
-  width: min(46vw, 22vh, 200px);
-  height: auto;
-  flex: none;
+  height: 100%;
+  width: auto;
+  max-height: min(46vw, 200px);
+  max-width: min(46vw, 200px);
   border-radius: 10px;
 }
 .qrcap {
@@ -1207,7 +1220,7 @@ button {
 /* A short viewport gives the QR back to the text. */
 /* Only when there is genuinely no room. Above this the QR shrinks to fit —
    hiding it on a screen with an obvious empty middle was an overcorrection. */
-@media (max-height: 600px) {
+@media (max-height: 560px) {
   .qrwrap {
     display: none;
   }

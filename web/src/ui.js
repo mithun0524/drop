@@ -436,7 +436,9 @@ function radar() {
       el('div', { class: 'topbar' }, [liveLine('Listening on this network'), gearBtn()]),
       el('div', { class: 'screen to-edge' }, [
         el('div', { class: 'qrwrap' }, [
-          qrSvg(appUrl(), 'Scan to open this page on another device'),
+          el('div', { class: 'qrbox' }, [
+            qrSvg(appUrl(), 'Scan to open this page on another device'),
+          ]),
           el('div', { class: 'qrcap' }, 'Point the other camera here'),
           navigator.share
             ? el(
@@ -866,7 +868,7 @@ function settings() {
   const trusted = loadTrusted();
   const back = () => set({ screen: S.backTo === 'settings' ? 'radar' : S.backTo });
   return [
-    el('div', { class: 'screen' }, [
+    el('div', { class: 'screen scrolls' }, [
       el('div', { class: 'topbar flush' }, [eyebrow('Settings'), closeBtn(back)]),
 
       el(
