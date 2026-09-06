@@ -462,11 +462,12 @@ button {
 /* ---- file list ------------------------------------------------------ */
 .filerow {
   display: flex;
+  align-items: baseline;
   justify-content: space-between;
   gap: 14px;
   border-bottom: 1px solid var(--line);
-  padding: 14px 0;
-  font: 500 clamp(14px, 4vw, 15px) / 1.2 var(--font);
+  padding: clamp(15px, 2.4vh, 20px) 0;
+  font: 500 clamp(14px, 1.4vh + 1.8vw, 16px) / 1.3 var(--font);
 }
 .on-color .filerow {
   border-color: rgba(255, 255, 255, 0.28);
@@ -1511,7 +1512,11 @@ button {
 
 
 /* A file list that centres itself when there is little of it. */
+/* flex:1 from .scroll would grow this to fill the screen, leaving the auto
+   margins no free space to centre with — the list then sits at the top of a
+   tall box with all the emptiness below it. It must not grow. */
 .filelist {
+  flex: 0 1 auto;
   margin: auto 0;
   padding: clamp(10px, 2.5vh, 22px) 0;
 }
