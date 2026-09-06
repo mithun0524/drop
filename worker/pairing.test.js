@@ -58,6 +58,14 @@ const e = await open('Echo', 'ZZZZ');
 await wait(700);
 check('an unknown code falls back to your own room', sawPeer(e, 'Alpha'));
 
+// Peers carry the network they arrived from, so the client can tell someone
+// they will never connect instead of letting them wait for a timeout.
+const netOf = (c) => c.got.find((m) => m.t === 'welcome')?.net;
+check('the server tells you your own network', !!netOf(a));
+const seen = c.got.find((m) => m.t === 'peers')?.peers ?? [];
+check('peers carry a network fingerprint', seen.length > 0 && seen.every((p) => !!p.net));
+check('same-network peers report the same fingerprint', seen.every((p) => p.net === netOf(c)));
+
 for (const x of [a, b, c, d, e]) x.ws.close();
 await wait(200);
 console.log(failures ? `\npairing: ${failures} FAILED` : '\npairing: all checks passed');

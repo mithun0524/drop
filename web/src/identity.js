@@ -71,10 +71,9 @@ export function saveMe(me) {
 // sent anywhere, which is the point of the product.
 
 const SETTINGS_KEY = 'drop.settings';
-const TRUSTED_KEY = 'drop.trusted';
 
 const DEFAULTS = {
-  autoAccept: false, // skip hold-to-accept for devices you've accepted before
+  autoAccept: false, // skip hold-to-accept for devices already accepted this session
 };
 
 const read = (key, fallback) => {
@@ -97,28 +96,22 @@ const write = (key, value) => {
 export const loadSettings = () => ({ ...DEFAULTS, ...read(SETTINGS_KEY, {}) });
 export const saveSettings = (s) => write(SETTINGS_KEY, s);
 
-// A peer id is regenerated every connection, so trust is keyed on the thing a
-// person actually recognises: the colour and name they picked.
-const peerKey = (peer) => `${peer.color}|${peer.name}`;
+// Trust is per-session and keyed on the server-assigned peer id, never on the
+// colour and name — those are chosen by the person you are trusting. Keying on
+// them meant a stranger could pick your laptop's colour and name and have
+// their files accepted without a prompt. A peer id is issued by the server for
+// one connection, so it cannot be claimed, and trust dies with the tab.
+const trusted = new Set();
 
-export const loadTrusted = () => read(TRUSTED_KEY, []);
-export const isTrusted = (peer) => peer && loadTrusted().includes(peerKey(peer));
-
-export function trust(peer) {
-  if (!peer) return;
-  const list = loadTrusted();
-  const k = peerKey(peer);
-  if (!list.includes(k)) write(TRUSTED_KEY, [...list, k]);
-}
-
-export function forgetTrusted() {
-  write(TRUSTED_KEY, []);
-}
+export const loadTrusted = () => [...trusted];
+export const isTrusted = (peer) => !!peer && trusted.has(peer.id);
+export const trust = (peer) => peer && trusted.add(peer.id);
+export const forgetTrusted = () => trusted.clear();
 
 export function resetIdentity() {
+  forgetTrusted();
   try {
     localStorage.removeItem(KEY);
-    localStorage.removeItem(TRUSTED_KEY);
   } catch {
     /* nothing to clear */
   }

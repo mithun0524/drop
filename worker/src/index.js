@@ -86,7 +86,10 @@ export default {
 
     // A Durable Object cannot read the name it was addressed by, and it needs
     // it to publish codes that point back here.
-    const forwarded = new Request(new URL('/ws?room=' + encodeURIComponent(name), url), request);
+    const forwarded = new Request(
+      new URL('/ws?room=' + encodeURIComponent(name) + '&net=' + encodeURIComponent(myRoom), url),
+      request
+    );
     return env.ROOMS.get(env.ROOMS.idFromName(name)).fetch(forwarded);
   },
 };
@@ -123,7 +126,7 @@ export class Room {
 
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
-    this.accept(server);
+    this.accept(server, url.searchParams.get('net'));
     return new Response(null, { status: 101, webSocket: client });
   }
 
@@ -135,12 +138,12 @@ export class Room {
     if (dead.length) await this.state.storage.delete(dead);
   }
 
-  accept(ws) {
+  accept(ws, net) {
     ws.accept();
     const id = crypto.randomUUID().slice(0, 8);
-    this.peers.set(id, { ws, info: null });
+    this.peers.set(id, { ws, info: null, net });
 
-    ws.send(JSON.stringify({ t: 'welcome', id }));
+    ws.send(JSON.stringify({ t: 'welcome', id, net }));
 
     ws.addEventListener('message', (ev) => {
       let m;
@@ -151,7 +154,13 @@ export class Room {
       }
 
       if (m.t === 'hello') {
-        const info = { id, name: String(m.name || '').slice(0, 40), color: m.color, kind: m.kind };
+        const info = {
+          id,
+          name: String(m.name || '').slice(0, 40),
+          color: m.color,
+          kind: m.kind,
+          net, // which network this peer reached us from
+        };
         this.peers.get(id).info = info;
         // Send the newcomer everyone already here, then announce them to the rest.
         ws.send(

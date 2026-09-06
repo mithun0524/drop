@@ -27,6 +27,7 @@ export class Net extends EventTarget {
     this.closed = false;
     this.stallTimers = new Map();
     this.pending = null; // a code waiting for the socket to come up
+    this.net = null; // the network the server saw us arrive from
   }
 
   emit(type, detail) {
@@ -85,6 +86,7 @@ export class Net extends EventTarget {
   async onSignal(m) {
     if (m.t === 'welcome') {
       this.id = m.id;
+      this.net = m.net; // our own network, to compare peers against
       return;
     }
     if (m.t === 'peers') {

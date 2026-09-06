@@ -350,10 +350,17 @@ function pairingCode() {
 }
 
 async function pickTarget(peer) {
+  if (!sameNetwork(peer)) return set({ target: peer, screen: 'offnet' });
   set({ target: peer, screen: 'pick' });
 }
 
+const sameNetwork = (peer) => !peer?.net || !net.net || peer.net === net.net;
+
 async function offerFiles(peer, files) {
+  // The server tells us which network each peer arrived from. Different
+  // networks cannot reach each other over the LAN, and no amount of waiting
+  // changes that.
+  if (!sameNetwork(peer)) return set({ target: peer, files, screen: 'offnet' });
   set({ target: peer, files, screen: 'connecting', error: null });
   try {
     const ch = await net.open(peer.id);
@@ -530,7 +537,13 @@ function radar() {
             el('div', { class: 'art' }, [silhouette(p.kind)]),
             el('div', {}, [
               el('div', { class: 'nm' }, p.name),
-              el('div', { class: 'kind' }, kindLabel(p.kind) + ' · tap to send'),
+              el(
+                'div',
+                { class: 'kind' },
+                sameNetwork(p)
+                  ? kindLabel(p.kind) + ' · tap to send'
+                  : 'Different network'
+              ),
             ]),
           ]
         )
@@ -914,8 +927,8 @@ function settings() {
       toggleRow(
         'Accept without asking',
         trusted.length
-          ? `From ${trusted.length} device${trusted.length > 1 ? 's' : ''} you've accepted before`
-          : "Applies once you've accepted from a device at least once",
+          ? `From ${trusted.length} device${trusted.length > 1 ? 's' : ''} accepted since this page opened`
+          : 'Only for devices you have already accepted, and only until you reload',
         S.settings.autoAccept,
         () => {
           const next = { ...S.settings, autoAccept: !S.settings.autoAccept };
@@ -924,7 +937,7 @@ function settings() {
         }
       ),
       trusted.length > 0 &&
-        row('Forget those devices', trusted.join(' · ').replace(/[a-z]+\|/g, ''), () => {
+        row('Forget those devices', 'Ask again for everything', () => {
           forgetTrusted();
           set({});
         }),
@@ -1060,6 +1073,25 @@ function saveAll() {
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 30_000);
   }
+}
+
+function offNet() {
+  return [
+    el('div', { class: 'screen', style: { background: COLORS.yellow, color: '#101014' } }, [
+      eyebrow('Different network'),
+      el('div', { class: 'center' }, [
+        head(`${S.target.name} is not<br>on your Wi-Fi.`, 'sm'),
+        el('p', { class: 'body' }, [
+          'You found each other through a code, but files move directly between ' +
+            'devices over one local network — there is no route between two.',
+        ]),
+        el('p', { class: 'body', style: { fontWeight: 600 } }, [
+          'Join the same Wi-Fi, or put both devices on one phone hotspot.',
+        ]),
+      ]),
+      blackBtn('Back to devices', () => set({ screen: 'radar', target: null, files: [] })),
+    ]),
+  ];
 }
 
 function blocked() {
@@ -1248,6 +1280,7 @@ const SCREENS = {
   done,
   saved,
   blocked,
+  offnet: offNet,
   ios: iosPermission,
   nowifi: noWifi,
   vanished,

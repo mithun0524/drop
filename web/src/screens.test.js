@@ -70,6 +70,7 @@ const STATES = {
   done: { target: PEER, files: MANIFEST, pct: 100 },
   saved: { target: PEER, manifest: MANIFEST, results: [['a.raw', { size: 100 }]] },
   blocked: { target: PEER },
+  offnet: { target: PEER },
   ios: {},
   nowifi: {},
   vanished: { target: PEER },
