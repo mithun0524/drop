@@ -57,6 +57,20 @@ function drain(ch) {
   });
 }
 
+/** Resolves once everything queued on the channel has gone out. */
+export function flushed(ch) {
+  if (!ch.bufferedAmount) return Promise.resolve();
+  return new Promise((resolve) => {
+    ch.bufferedAmountLowThreshold = 0;
+    const done = () => {
+      if (ch.bufferedAmount) return;
+      ch.removeEventListener('bufferedamountlow', done);
+      resolve();
+    };
+    ch.addEventListener('bufferedamountlow', done);
+  });
+}
+
 /**
  * Streams files down the channel, one after another.
  * onProgress({ index, fileSent, sent, total }) fires per chunk.

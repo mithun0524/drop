@@ -24,6 +24,7 @@ import qrcode from 'qrcode-generator';
 import {
   sendFiles,
   createReceiver,
+  flushed,
   describe,
   memorySink,
   diskSink,
@@ -81,14 +82,32 @@ const S = {
 // set() per chunk — without this, a 1GB send rebuilds the DOM thousands of
 // times a second.
 let frame = 0;
+const flush = () => {
+  frame = 0;
+  render();
+};
 const set = (patch) => {
   Object.assign(S, patch);
   if (frame) return;
-  frame = requestAnimationFrame(() => {
-    frame = 0;
-    render();
-  });
+  // Mid-transfer, progress lands hundreds of times a second. Redrawing that
+  // often costs a phone real CPU and swaps buttons out from under a finger, so
+  // a tap on Stop goes nowhere. Four frames a second reads as live.
+  const busy = (S.screen === 'sending' || S.screen === 'receiving') && !('screen' in patch);
+  frame = busy ? setTimeout(flush, 250) : requestAnimationFrame(flush);
 };
+
+// Speed over the last few seconds, not since accept: an average that includes
+// the handshake reads "220 s left" for the opening seconds of every transfer.
+let samples = [];
+function rate(bytes) {
+  const now = performance.now();
+  if (!samples.length || now - samples[samples.length - 1][0] > 100) samples.push([now, bytes]);
+  while (samples.length > 2 && now - samples[0][0] > 3000) samples.shift();
+  const [t0, b0] = samples[0];
+  return now - t0 > 800 ? (bytes - b0) / 1e3 / (now - t0) : 0; // MB/s
+}
+
+const timeLeft = (secs) => (secs < 60 ? `${secs} s left` : `${Math.round(secs / 60)} min left`);
 
 if (S.me.fresh) S.screen = 'identity';
 
@@ -380,7 +399,15 @@ let abort = null; // AbortController for an active send
 let session = createSession();
 
 net.addEventListener('channel', ({ detail: { id, ch } }) => {
-  ch.addEventListener('message', (e) => onChannelMessage(id, e.data));
+  // One message at a time, in the order they arrived. A second offer lands
+  // right behind the last chunks of the first batch; handled the moment it
+  // arrives, it reset the transfer those chunks were still being written into.
+  let queue = Promise.resolve();
+  ch.addEventListener('message', (e) => {
+    queue = queue
+      .then(() => onChannelMessage(id, e.data))
+      .catch((err) => console.error('[drop] message', err));
+  });
 });
 
 async function onChannelMessage(from, data) {
@@ -400,6 +427,7 @@ async function onChannelMessage(from, data) {
       // decision already made.
       if (resumeFrom) {
         net.channel(from)?.send(JSON.stringify({ t: 'resume', have: resumeFrom }));
+        samples = [];
         return set({
           screen: 'receiving',
           target: peer,
@@ -421,8 +449,10 @@ async function onChannelMessage(from, data) {
       if (S.settings.autoAccept && isTrusted(peer)) accept();
       return;
     }
-    if (m.t === 'accept') return startSending(from);
-    if (m.t === 'resume') return startSending(from, m.have);
+    // Not awaited: a send runs for minutes, and holding the queue for it would
+    // leave a cancel from the other side waiting until it finished.
+    if (m.t === 'accept') return void startSending(from);
+    if (m.t === 'resume') return void startSending(from, m.have);
     if (m.t === 'decline') return set({ screen: 'declined' });
     if (m.t === 'cancel') {
       rx?.abort();
@@ -464,10 +494,9 @@ function buildReceiver(onResume) {
       return memorySink();
     },
     onProgress: ({ got, total, index }) => {
-      const secs = (performance.now() - S.startedAt) / 1000;
       set({
         pct: (got / total) * 100,
-        speed: secs > 0.3 ? got / 1e6 / secs : 0,
+        speed: rate(got),
         index,
         bytes: got,
         fileName: S.manifest?.[index]?.name ?? '',
@@ -541,6 +570,7 @@ async function offerFiles(peer, files, tid = null) {
 async function startSending(id, offsets = []) {
   const ch = net.channel(id);
   abort = new AbortController();
+  samples = [];
   set({ screen: 'sending', pct: 0, startedAt: performance.now(), bytes: 0, failed: [], stalled: false });
   try {
     await sendFiles(ch, S.files, {
@@ -548,16 +578,21 @@ async function startSending(id, offsets = []) {
       offsets,
       onFailed: (i) => set({ failed: [...S.failed, i] }),
       onProgress: ({ sent, total, index }) => {
-        const secs = (performance.now() - S.startedAt) / 1000;
+        // What has left this device, not what is queued to: counting the
+        // queue jumps ahead by megabytes and then sits still while it drains.
+        const moved = Math.max(0, sent - (ch.bufferedAmount ?? 0));
         set({
-          pct: (sent / total) * 100,
-          speed: secs > 0.3 ? sent / 1e6 / secs : 0,
+          pct: (moved / total) * 100,
+          speed: rate(moved),
           index,
-          bytes: sent,
+          bytes: moved,
           fileName: S.files[index]?.name ?? '',
         });
       },
     });
+    // Everything is queued, not yet delivered. Saying "sent" now let the next
+    // batch start while the last megabytes were still on their way.
+    await flushed(ch);
     set({ screen: 'done', pct: 100, showQueue: false, stalled: false });
   } catch (err) {
     if (err.message !== 'cancelled') set({ screen: 'vanished', error: err.message });
@@ -592,6 +627,7 @@ async function accept() {
   }
 
   net.channel(S.target.id)?.send(JSON.stringify({ t: 'accept' }));
+  samples = [];
   set({ screen: 'receiving', pct: 0, startedAt: performance.now(), bytes: 0, writables, folder });
 }
 
@@ -1131,7 +1167,7 @@ function transfer() {
         S.stalled
           ? 'Waiting for them to come back…'
           : S.speed
-            ? `${S.speed.toFixed(0)} MB/s · ${eta} s left`
+            ? `${formatSpeed(S.speed)} · ${timeLeft(eta)}`
             : 'Starting…'
       ),
       el('div', { class: 'curfile' }, S.fileName),
@@ -1140,7 +1176,7 @@ function transfer() {
         { class: 'eyebrow', style: { marginTop: '10px' } },
         S.stalled
           ? 'Paused · nothing lost yet'
-          : `File ${S.index + 1} of ${count} · ${formatSize(total)}` +
+          : `File ${S.index + 1} of ${count} · ${formatSize(S.bytes)} of ${formatSize(total)}` +
             (S.failed.length ? ` · ${S.failed.length} failed` : '')
       ),
       count > 1 &&
@@ -1403,7 +1439,8 @@ function done() {
         el('div', { class: 'stats' }, [
           el('span', {}, formatSize(total)),
           el('span', {}, secs.toFixed(1) + ' s'),
-          el('span', {}, formatSpeed(total / 1e6 / secs)),
+          // Under a megabyte the time is mostly handshake; a speed from it is noise.
+          total >= 1e6 ? el('span', {}, formatSpeed(total / 1e6 / secs)) : null,
         ]),
         el(
           'div',
@@ -1411,7 +1448,14 @@ function done() {
           'Nothing uploaded · nothing kept'
         ),
       ]),
-      blackBtn('Send something else', () => set({ screen: 'radar', files: [], target: null })),
+      // The connection is still open, so more for the same device skips the
+      // device list and the reconnect; they still say yes to each batch.
+      ...(S.peers.some((p) => p.id === S.target.id)
+        ? [
+            blackBtn(`Send more to ${S.target.name}`, () => chooseFiles()),
+            plainBtn('Done', () => set({ screen: 'radar', files: [], target: null })),
+          ]
+        : [blackBtn('Send something else', () => set({ screen: 'radar', files: [], target: null }))]),
     ]),
   ];
 }
@@ -1433,7 +1477,9 @@ function saved() {
         el(
           'div',
           { class: 'meta', style: { opacity: 0.8 } },
-          `${formatSize(total)} · ${formatSpeed(total / 1e6 / secs)} average`
+          total >= 1e6
+            ? `${formatSize(total)} · ${formatSpeed(total / 1e6 / secs)} average`
+            : formatSize(total)
         ),
         isNative()
           ? el(
@@ -1814,6 +1860,7 @@ const renderKey = () =>
     S.results.length,
     Math.round(S.pct),
     Math.round(S.speed),
+    Math.round(S.bytes / 1e5), // the running byte count moves even when the percent can't
     S.index,
     S.fileName,
     S.hold,
