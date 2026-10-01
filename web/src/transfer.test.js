@@ -335,3 +335,42 @@ console.log('transfer: resume checks passed');
 }
 
 console.log('transfer: speed and type checks passed');
+
+// 16. A real channel does not wait for one message to finish before delivering
+//     the next. With slow sinks (OPFS, native) a batch must still land intact.
+{
+  const a = Buffer.from(Array.from({ length: 150_000 }, (_, i) => i % 251));
+  const b = Buffer.from(Array.from({ length: 90_000 }, (_, i) => i % 13));
+  const files = [fileFrom('a.bin', a), fileFrom('b.bin', b)];
+  const ch = fakeChannel();
+  ch.send(JSON.stringify({ t: 'offer', files: describe(files) }));
+  await sendFiles(ch, files, { chunkSize: 16 * 1024 });
+
+  const tick = () => new Promise((r) => setTimeout(r, 5));
+  const saved = [];
+  const errors = [];
+  let done = false;
+  const rx = createReceiver({
+    session: createSession(),
+    openSink: async () => {
+      await tick();
+      const parts = [];
+      return {
+        write: (c) => parts.push(c),
+        close: async () => (await tick(), Buffer.concat(parts)),
+      };
+    },
+    onFile: (meta, i, r) => saved.push([meta.name, r]),
+    onDone: () => (done = true),
+    onError: (e) => errors.push(e),
+  });
+  // Fire-and-forget, the way an event listener does.
+  await Promise.all(ch.out.map((msg) => rx.handle(msg)));
+
+  assert.deepEqual(errors.map((e) => e.message), [], 'no errors under concurrent delivery');
+  assert.ok(done, 'done fired');
+  assert.equal(sha(saved[0][1]), sha(a));
+  assert.equal(sha(saved[1][1]), sha(b));
+}
+
+console.log('transfer: concurrent delivery check passed');

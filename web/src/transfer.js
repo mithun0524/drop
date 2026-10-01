@@ -140,7 +140,13 @@ export function createReceiver({
 
   const fail = (msg) => onError?.(new Error(msg));
 
-  async function handle(data) {
+  // A channel fires the next message without waiting for this one's awaits
+  // (opening a sink, closing one). Run them strictly in order, or a file's
+  // chunks land while its sink is still opening and the batch tears.
+  let queue = Promise.resolve();
+  const handle = (data) => (queue = queue.then(() => process(data)).catch((e) => onError?.(e)));
+
+  async function process(data) {
     if (typeof data === 'string') {
       const m = JSON.parse(data);
 
