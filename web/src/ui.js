@@ -826,6 +826,12 @@ function footer() {
   );
 }
 
+/** The name you were dealt is always one of the choices, so one is always selected. */
+function nameChoices() {
+  const top = NAMES[S.me.color].slice(0, 4);
+  return top.includes(S.me.name) ? top : [S.me.name, ...top.slice(0, 3)];
+}
+
 function identity() {
   return [
     el('div', { class: 'screen' }, [
@@ -842,6 +848,8 @@ function identity() {
             'button',
             {
               class: S.me.color === k ? 'on' : '',
+              'aria-label': k[0].toUpperCase() + k.slice(1),
+              'aria-pressed': String(S.me.color === k),
               style: {
                 background: COLORS[k],
                 outline: S.me.color === k ? '3px solid var(--ink)' : 'none',
@@ -859,7 +867,7 @@ function identity() {
       el(
         'div',
         { class: 'namepicks' },
-        NAMES[S.me.color].slice(0, 4).map((n) =>
+        nameChoices().map((n) =>
           el(
             'button',
             { class: S.me.name === n ? 'on' : '', onClick: () => set({ me: { ...S.me, name: n } }) },
@@ -1028,9 +1036,11 @@ function incoming() {
       el('div', { class: 'center' }, [
         head(
           `${S.target.name}<br>wants to send<br>you ${n} file${n > 1 ? 's' : ''}.`,
-          n > 1 ? '' : 'sm'
+          'sm'
         ),
         el('div', { class: 'meta' }, formatSize(total)),
+        // What is being accepted, not just how much of it.
+        el('div', { class: 'sendlist peek' }, S.manifest.map((f) => fileRow(f))),
         // Too big to hold, and this browser cannot stream to disk: say so now
         // rather than let the tab die halfway through with nothing on screen.
         cramped
@@ -1210,50 +1220,63 @@ function transfer() {
 }
 
 
+/** What a file is, at a glance: its extension, or FILE when it has none. */
+const extOf = (name) => {
+  const m = /\.([a-z0-9]{1,4})$/i.exec(name);
+  return m ? m[1].toUpperCase() : 'FILE';
+};
+
+/** One file in a list. With onRemove it can be taken out; without, it is just shown. */
+const fileRow = (f, onRemove) =>
+  el('div', { class: 'sfile' }, [
+    el('div', { class: 'sfile-ext' }, extOf(f.name)),
+    el('div', { class: 'sfile-txt' }, [
+      el('div', { class: 'sfile-name', title: f.name }, f.name),
+      el('div', { class: 'sfile-size' }, formatSize(f.size)),
+    ]),
+    onRemove
+      ? el(
+          'button',
+          { class: 'drop-x', 'aria-label': `Remove ${f.name}`, onClick: onRemove },
+          '\u00d7'
+        )
+      : null,
+  ]);
+
 function confirm_() {
   const total = totalOf(S.files);
   const n = S.files.length;
   return [
     el('div', { class: 'screen' }, [
-      eyebrow('Confirm'),
-      // Heading, total and list travel as one block and centre together —
-      // pinned to the top they crowd each other while the list floats alone
-      // in the middle of the screen.
-      el('div', { class: 'center' }, [
-        head(`${n} file${n > 1 ? 's' : ''} to<br>${S.target.name}.`, 'sm'),
-        el('div', { class: 'meta' }, formatSize(total) + ' total'),
-        total > 4e9
-          ? el('div', { class: 'warn' }, [
-              el('b', {}, 'This is a lot to send at once.'),
-              el(
-                'span',
-                {},
-                'The other device needs the free space for it. Fewer files at a time is safer.'
-              ),
-            ])
-          : null,
-        el(
-          'div',
-          { class: 'filelist' },
-          S.files.map((f, i) =>
-            el('div', { class: 'filerow' }, [
-              el('span', {}, f.name),
-              el('span', { class: 'size' }, formatSize(f.size)),
-              el(
-                'button',
-                {
-                  class: 'drop-x',
-                  'aria-label': `Remove ${f.name}`,
-                  onClick: () => dropFile(i),
-                },
-                '\u00d7'
-              ),
-            ])
-          )
-        ),
-        el('button', { class: 'linkline', onClick: () => chooseFiles({ add: true }) }, 'Add more files'),
+      eyebrow('Send to'),
+      // Who it goes to stays in view: the list below can grow long enough to
+      // push everything else off screen, and this is the one thing to check.
+      el('div', { class: 'sendto' }, [
+        el('div', { class: 'sendto-dev' }, [silhouette(S.target.kind)]),
+        el('div', { class: 'sendto-name' }, S.target.name),
       ]),
-      blackBtn('Send', () => offerFiles(S.target, S.files)),
+      el('div', { class: 'sendsum' }, [
+        el('h2', { class: 'head sm' }, `${n} file${n > 1 ? 's' : ''}`),
+        el('div', { class: 'meta' }, formatSize(total)),
+      ]),
+      total > 4e9
+        ? el('div', { class: 'warn' }, [
+            el('b', {}, 'This is a lot to send at once.'),
+            el(
+              'span',
+              {},
+              'The other device needs the free space for it. Fewer files at a time is safer.'
+            ),
+          ])
+        : null,
+      el('div', { class: 'sendlist' }, [
+        ...S.files.map((f, i) => fileRow(f, () => dropFile(i))),
+        el('button', { class: 'sfile-add', onClick: () => chooseFiles({ add: true }) }, [
+          el('span', { class: 'sfile-plus', 'aria-hidden': 'true' }, '+'),
+          'Add files',
+        ]),
+      ]),
+      blackBtn(`Send ${n > 1 ? n + ' files' : 'it'}`, () => offerFiles(S.target, S.files)),
       plainBtn('Cancel', () => {
         net.hint(S.target.id, 'stopped');
         set({ screen: 'radar', files: [], target: null });
@@ -1421,13 +1444,8 @@ function saved() {
           : null,
         el(
           'div',
-          { class: 'scroll', style: { marginTop: '18px', maxHeight: '160px' } },
-          S.results.map(([name, blob]) =>
-            el('div', { class: 'filerow' }, [
-              el('span', {}, name),
-              el('span', {}, formatSize(blob.size)),
-            ])
-          )
+          { class: 'sendlist peek' },
+          S.results.map(([name, blob]) => fileRow({ name, size: blob.size }))
         ),
       ]),
       blackBtn(
